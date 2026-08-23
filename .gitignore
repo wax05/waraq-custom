@@ -73,3 +73,9 @@ AuthKey_*.p8
 *.log
 tmp/
 Waraq.xcodeproj/
+
+# Build
+*.dmg
+
+# MediaFile
+*.mp4

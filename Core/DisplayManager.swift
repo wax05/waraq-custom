@@ -51,6 +51,7 @@ final class DisplayManager: ObservableObject {
     private var screenObserver: NSObjectProtocol?
     private var governorCancellable: AnyCancellable?
     private var renderSettingsObserver: NSObjectProtocol?
+    private var rifeVariantObserver: NSObjectProtocol?
 
     struct DisplayInfo: Identifiable, Equatable {
         let id: CGDirectDisplayID
@@ -94,6 +95,18 @@ final class DisplayManager: ObservableObject {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.applyRenderSettings()
+            }
+        }
+
+        rifeVariantObserver = NotificationCenter.default.addObserver(
+            forName: RifeMetalPreprocessor.didProduceVariantNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let wallpaperID = note.userInfo?["wallpaperID"] as? String
+            else { return }
+            Task { @MainActor [weak self] in
+                self?.reloadProcessedWallpaper(id: wallpaperID)
             }
         }
 
@@ -163,6 +176,23 @@ final class DisplayManager: ObservableObject {
         )
     }
 
+    private func playbackFrameRateLimit(
+        for displayID: CGDirectDisplayID
+    ) -> Double {
+        if throttledDisplays.contains(displayID) {
+            return PerformanceRenderSettings.throttledFrameRate(for: displayID)
+        }
+        if let configured = PerformanceRenderSettings.effectiveFrameRate(
+            for: displayID
+        ) {
+            return configured
+        }
+        return Double(
+            NSScreen.screens.first(where: { $0.displayID == displayID })?
+                .maximumFramesPerSecond ?? 60
+        )
+    }
+
     private func reloadProceduralView(for displayID: CGDirectDisplayID) {
         guard let key = proceduralKeys[displayID],
               let window = windows[displayID],
@@ -183,6 +213,9 @@ final class DisplayManager: ObservableObject {
             NotificationCenter.default.removeObserver(observer)
         }
         if let observer = renderSettingsObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = rifeVariantObserver {
             NotificationCenter.default.removeObserver(observer)
         }
     }
@@ -326,7 +359,10 @@ final class DisplayManager: ObservableObject {
             }
 
         case .video:
-            if let videoURL = library.fileURL(for: wallpaper) {
+            if let videoURL = library.playbackURL(
+                for: wallpaper,
+                maximumFrameRate: playbackFrameRateLimit(for: id)
+            ) {
                 let engine = VideoEngine(
                     videoURL: videoURL,
                     fitMode: settings.fitMode
@@ -372,6 +408,24 @@ final class DisplayManager: ObservableObject {
             // .url is deprecated and filtered on library load,
             // but handle gracefully as fallback.
             installGradient(into: window, id: id)
+        }
+    }
+
+    private func reloadProcessedWallpaper(id wallpaperID: String) {
+        let assignments = UserDefaults.standard.dictionary(
+            forKey: "displayWallpaperAssignments"
+        ) as? [String: String] ?? [:]
+
+        for (rawDisplayID, assignedID) in assignments
+            where assignedID == wallpaperID
+        {
+            guard let displayID = UInt32(rawDisplayID),
+                  windows[displayID] != nil,
+                  let screen = NSScreen.screens.first(where: {
+                      $0.displayID == displayID
+                  }) else { continue }
+            teardownWindow(for: displayID)
+            spawnWindow(for: screen, id: displayID)
         }
     }
 

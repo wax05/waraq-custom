@@ -58,6 +58,7 @@ enum PerformanceRenderSettings {
 
     private static let defaults = UserDefaults.standard
     private static let displayFrameRateCapsKey = "displayFrameRateCaps"
+    static let frameRateStep: Double = 10
 
     static var quality: RenderQuality {
         let raw = defaults.string(forKey: "renderQuality") ?? "auto"
@@ -88,9 +89,14 @@ enum PerformanceRenderSettings {
         for displayID: CGDirectDisplayID
     ) {
         var map = defaults.dictionary(forKey: displayFrameRateCapsKey) ?? [:]
-        map[String(displayID)] = clamp(frameRate)
+        map[String(displayID)] = normalizedFrameRate(frameRate)
         defaults.set(map, forKey: displayFrameRateCapsKey)
         notifyChanged()
+    }
+
+    static func normalizedFrameRate(_ value: Double) -> Double {
+        let stepped = (value / frameRateStep).rounded() * frameRateStep
+        return min(max(stepped, 10), 120)
     }
 
     /// Returns the effective cap for a display. Quality presets always
@@ -133,7 +139,7 @@ enum PerformanceRenderSettings {
     }
 
     private static func clamp(_ value: Double) -> Double {
-        min(max(value.rounded(), 10), 120)
+        normalizedFrameRate(value)
     }
 }
 

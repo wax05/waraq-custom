@@ -268,6 +268,52 @@ final class WaraqTests: XCTestCase {
         )
     }
 
+    func testRifeMetalFrameRatePlanUsesRequestedOrderAndTenFPSSteps() {
+        XCTAssertEqual(
+            RifeMetalPreprocessor.targetFrameRates(
+                sourceFPS: 24,
+                displayMaxFPS: 120
+            ),
+            [60, 70, 90, 120, 30, 40, 50, 80, 100, 110]
+        )
+        XCTAssertEqual(
+            PerformanceRenderSettings.normalizedFrameRate(73),
+            70
+        )
+    }
+
+    @MainActor
+    func testRifeInterpolationQueueTracksProgressAndCompletion() {
+        let queue = RifeInterpolationQueue()
+        queue.enqueue(
+            id: "queue-test",
+            name: "Queue Test",
+            targetFrameRates: [60, 70]
+        )
+        XCTAssertEqual(queue.jobs.first?.status, .queued)
+
+        queue.start(id: "queue-test", frameRate: 60)
+        queue.update(
+            id: "queue-test",
+            frameRate: 60,
+            variantProgress: 0.5,
+            progress: 0.25
+        )
+        XCTAssertEqual(queue.jobs.first?.progress, 0.25)
+        XCTAssertEqual(queue.jobs.first?.currentFrameRate, 60)
+
+        queue.completeVariant(
+            id: "queue-test",
+            frameRate: 60,
+            progress: 0.5
+        )
+        queue.complete(id: "queue-test")
+        XCTAssertEqual(queue.jobs.first?.status, .completed)
+        XCTAssertEqual(queue.jobs.first?.progress, 1)
+        queue.clearFinished()
+        XCTAssertTrue(queue.jobs.isEmpty)
+    }
+
     @MainActor
     func testWallpaperLibraryHasBuiltIn() {
         let library = WallpaperLibrary()

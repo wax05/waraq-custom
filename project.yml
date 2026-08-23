@@ -7,6 +7,11 @@ options:
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
+packages:
+  RifeMetal:
+    url: https://github.com/cinemore/rife-metal.git
+    from: 0.1.4
+
 settings:
   base:
     SWIFT_VERSION: "5.10"
@@ -19,6 +24,9 @@ targets:
   Waraq:
     type: application
     platform: macOS
+    dependencies:
+      - package: RifeMetal
+        product: RifeMetal
     sources:
       - path: App
       - path: Core
@@ -31,8 +39,9 @@ targets:
       properties:
         LSUIElement: true
         CFBundleDisplayName: Waraq
-        CFBundleShortVersionString: "1.0.0"
-        CFBundleVersion: "3"
+        CFBundleShortVersionString: "1.1.0"
+        CFBundleVersion: "4"
+        WaraqReleaseNotes: "프레임 생성 기술 추가"
         NSHumanReadableCopyright: "Copyright (C) 2026 Omar A. Othman. Licensed under GPL v3."
         NSHighResolutionCapable: true
         LSMinimumSystemVersion: "14.0"
@@ -40,8 +49,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bahamut.waraq
         PRODUCT_NAME: Waraq
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "1.1.0"
+        CURRENT_PROJECT_VERSION: "4"
         ENABLE_HARDENED_RUNTIME: YES
         COMBINE_HIDPI_IMAGES: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

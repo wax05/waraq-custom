@@ -30,6 +30,7 @@ final class WallpaperLibrary: ObservableObject {
 
     let libraryDir: URL
     let wallpapersDir: URL
+    let processedDir: URL
     let thumbnailsDir: URL
     let manifestURL: URL
 
@@ -57,6 +58,8 @@ final class WallpaperLibrary: ObservableObject {
             .appendingPathComponent("Waraq", isDirectory: true)
         wallpapersDir = libraryDir
             .appendingPathComponent("Wallpapers", isDirectory: true)
+        processedDir = libraryDir
+            .appendingPathComponent("Processed", isDirectory: true)
         thumbnailsDir = libraryDir
             .appendingPathComponent("Thumbnails", isDirectory: true)
         manifestURL = libraryDir
@@ -64,6 +67,10 @@ final class WallpaperLibrary: ObservableObject {
 
         try? FileManager.default.createDirectory(
             at: wallpapersDir,
+            withIntermediateDirectories: true
+        )
+        try? FileManager.default.createDirectory(
+            at: processedDir,
             withIntermediateDirectories: true
         )
         try? FileManager.default.createDirectory(
@@ -142,6 +149,7 @@ final class WallpaperLibrary: ObservableObject {
         wallpapers.append(wallpaper)
         save()
         generateThumbnailAsync(for: wallpaper)
+        scheduleFrameInterpolation(for: wallpaper)
         return wallpaper
     }
 
@@ -207,6 +215,9 @@ final class WallpaperLibrary: ObservableObject {
             let fileURL = wallpapersDir.appendingPathComponent(rel)
             try? FileManager.default.removeItem(at: fileURL)
         }
+        try? FileManager.default.removeItem(
+            at: processedDirectory(for: wallpaper)
+        )
         try? FileManager.default.removeItem(at: thumbnailURL(for: wallpaper))
         try? FileManager.default.removeItem(
             at: customThumbnailURL(for: wallpaper)
@@ -246,6 +257,60 @@ final class WallpaperLibrary: ObservableObject {
     func fileURL(for wallpaper: Wallpaper) -> URL? {
         guard let rel = wallpaper.relativePath else { return nil }
         return wallpapersDir.appendingPathComponent(rel)
+    }
+
+    /// Selects the highest completed RifeMetal variant that does not exceed
+    /// the current display limit. The original remains the safe fallback.
+    func playbackURL(
+        for wallpaper: Wallpaper,
+        maximumFrameRate: Double?
+    ) -> URL? {
+        guard wallpaper.kind == .video,
+              let originalURL = fileURL(for: wallpaper) else { return nil }
+
+        let displayMaximum = NSScreen.screens.map(\.maximumFramesPerSecond).max()
+            ?? 60
+        let cap = Int(
+            (maximumFrameRate ?? Double(displayMaximum)).rounded(.down)
+        )
+        let directory = processedDirectory(for: wallpaper)
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isRegularFileKey]
+        ) else { return originalURL }
+
+        let best = files.compactMap { url -> (Int, URL)? in
+            let name = url.deletingPathExtension().lastPathComponent
+            guard name.hasSuffix("fps"),
+                  let fps = Int(name.dropLast(3)),
+                  fps <= cap,
+                  url.pathExtension.lowercased() == "mp4" else { return nil }
+            return (fps, url)
+        }.max { $0.0 < $1.0 }
+        return best?.1 ?? originalURL
+    }
+
+    private func scheduleFrameInterpolation(for wallpaper: Wallpaper) {
+        guard wallpaper.kind == .video,
+              let sourceURL = fileURL(for: wallpaper) else { return }
+        let displayMaximum = NSScreen.screens.map(\.maximumFramesPerSecond).max()
+            ?? 60
+        let maxFPS = min(max(displayMaximum, 30), 120)
+        let outputDirectory = processedDirectory(for: wallpaper)
+
+        Task {
+            await RifeMetalPreprocessor.shared.enqueue(
+                sourceURL: sourceURL,
+                wallpaperID: wallpaper.id,
+                displayName: wallpaper.name,
+                outputDirectory: outputDirectory,
+                displayMaxFPS: maxFPS
+            )
+        }
+    }
+
+    private func processedDirectory(for wallpaper: Wallpaper) -> URL {
+        processedDir.appendingPathComponent(wallpaper.id, isDirectory: true)
     }
 
     func thumbnailURL(for wallpaper: Wallpaper) -> URL {

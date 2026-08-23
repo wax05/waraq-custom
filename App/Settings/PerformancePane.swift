@@ -370,7 +370,11 @@ struct PerformancePane: View {
                     .font(.system(size: 12, weight: .medium))
                     .frame(width: 58, alignment: .trailing)
             }
-            Slider(value: binding, in: 10...120, step: 1)
+            Slider(
+                value: binding,
+                in: 10...120,
+                step: PerformanceRenderSettings.frameRateStep
+            )
         }
     }
 
@@ -385,7 +389,7 @@ struct PerformancePane: View {
                     )
             },
             set: { value in
-                let cap = min(max(value.rounded(), 10), 120)
+                let cap = PerformanceRenderSettings.normalizedFrameRate(value)
                 displayFrameRateCaps[displayID] = cap
                 PerformanceRenderSettings.setDisplayFrameRateCap(
                     cap,

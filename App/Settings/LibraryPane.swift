@@ -24,6 +24,7 @@ import UniformTypeIdentifiers
 
 struct LibraryPane: View {
     @StateObject private var library = WallpaperLibrary.shared
+    @StateObject private var interpolationQueue = RifeInterpolationQueue.shared
     @State private var searchQuery: String = ""
     @State private var typeFilter: TypeFilter = .all
     @State private var sortOrder: SortOrder = .recentlyAdded
@@ -52,6 +53,7 @@ struct LibraryPane: View {
                 titleRow
                 toolbar
                 counterLine
+                interpolationQueueSection
                 wallpaperGrid
                 restoreFooter
             }
@@ -248,6 +250,39 @@ struct LibraryPane: View {
             .foregroundStyle(.secondary)
             .padding(.bottom, 12)
             .padding(.horizontal, 2)
+    }
+
+    @ViewBuilder
+    private var interpolationQueueSection: some View {
+        if !interpolationQueue.jobs.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text("FRAME INTERPOLATION QUEUE")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .tracking(0.4)
+                    Spacer()
+                    if interpolationQueue.jobs.contains(where: { $0.isFinished }) {
+                        Button("Clear") {
+                            interpolationQueue.clearFinished()
+                        }
+                        .buttonStyle(.borderless)
+                        .font(.system(size: 11))
+                    }
+                }
+                .padding(.bottom, 8)
+
+                Card {
+                    ForEach(interpolationQueue.jobs) { job in
+                        FrameInterpolationQueueRow(job: job)
+                        if job.id != interpolationQueue.jobs.last?.id {
+                            Divider()
+                        }
+                    }
+                }
+            }
+            .padding(.bottom, 16)
+        }
     }
 
     private var wallpaperGrid: some View {
@@ -585,6 +620,90 @@ private struct WallpaperCard: View {
         case .gifURL: wallpaper.urlHost ?? "Remote GIF"
         case .url: wallpaper.urlHost ?? "Deprecated URL"
         case .image: wallpaper.fileSizeString ?? "Still image"
+        }
+    }
+}
+
+private struct FrameInterpolationQueueRow: View {
+    let job: RifeInterpolationQueue.Job
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: statusIcon)
+                    .foregroundStyle(statusColor)
+                Text(job.name)
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Text(statusLabel)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(statusColor)
+            }
+
+            ProgressView(value: job.progress)
+                .progressViewStyle(.linear)
+                .tint(statusColor)
+
+            HStack(spacing: 8) {
+                Text(detailLabel)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Text("\(Int((job.progress * 100).rounded()))%")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private var statusLabel: String {
+        switch job.status {
+        case .queued: "Queued"
+        case .processing: "Processing"
+        case .completed: "Completed"
+        case .failed: "Failed"
+        }
+    }
+
+    private var statusIcon: String {
+        switch job.status {
+        case .queued: "clock"
+        case .processing: "arrow.triangle.2.circlepath"
+        case .completed: "checkmark.circle.fill"
+        case .failed: "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var statusColor: Color {
+        switch job.status {
+        case .queued: .secondary
+        case .processing: .accentColor
+        case .completed: .green
+        case .failed: .red
+        }
+    }
+
+    private var detailLabel: String {
+        switch job.status {
+        case .queued:
+            if job.targetFrameRates.isEmpty {
+                return "Preparing frame-rate plan..."
+            }
+            return "\(job.targetFrameRates.count) target rates queued"
+        case .processing:
+            let frameRate = job.currentFrameRate.map { "\($0) FPS" }
+                ?? "Preparing"
+            let completed = job.completedFrameRates.count
+            let total = job.targetFrameRates.count
+            return "\(frameRate) · \(completed)/\(total) variants"
+        case .completed:
+            return "\(job.completedFrameRates.count) variants ready"
+        case .failed:
+            return job.errorMessage ?? "Frame interpolation failed"
         }
     }
 }

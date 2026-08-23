@@ -34,15 +34,21 @@ struct AboutPane: View {
             as? String ?? "1"
     }
 
+    private var releaseNote: String {
+        Bundle.main.infoDictionary?["WaraqReleaseNotes"]
+            as? String ?? ""
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
                 hero
+                releaseNotes
                 links
                 Divider()
                     .padding(.vertical, 18)
                     .padding(.horizontal, 40)
-                acknowledgments
+                openSourceLicenses
 
                 Button {
                     OnboardingWindowController.presentForced(
@@ -90,6 +96,28 @@ struct AboutPane: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
         .padding(.bottom, 24)
+    }
+
+    private var releaseNotes: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 16))
+                .foregroundStyle(Color.accentColor)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("WHAT'S NEW IN \(appVersion)")
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(0.4)
+                    .foregroundStyle(.secondary)
+                Text(releaseNote)
+                    .font(.system(size: 12, weight: .medium))
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.accentColor.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(.bottom, 18)
     }
 
     private var links: some View {
@@ -157,24 +185,24 @@ struct AboutPane: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    private var acknowledgments: some View {
+    private var openSourceLicenses: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("ACKNOWLEDGMENTS")
+            Text("OPEN SOURCE LICENSES")
                 .font(.system(size: 11, weight: .medium))
                 .tracking(0.5)
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 6) {
-                acknowledgmentRow(
-                    "Sparkle", "github.com/sparkle-project/Sparkle"
+                licenseRow(
+                    "Waraq", "GNU General Public License v3"
                 )
-                acknowledgmentRow(
-                    "LaunchAtLogin", "github.com/sindresorhus/LaunchAtLogin-Modern"
+                licenseRow(
+                    "RifeMetal", "Apache License 2.0"
                 )
-                acknowledgmentRow(
-                    "Defaults", "github.com/sindresorhus/Defaults"
+                licenseRow(
+                    "Practical-RIFE v4.26 weights", "MIT License"
                 )
             }
-            Text("All open source. Thank you to the maintainers.")
+            Text("License texts and source links are available in the project repository.")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
                 .padding(.top, 8)
@@ -182,7 +210,7 @@ struct AboutPane: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func acknowledgmentRow(
+    private func licenseRow(
         _ name: String, _ subtitle: String
     ) -> some View {
         HStack(spacing: 8) {
