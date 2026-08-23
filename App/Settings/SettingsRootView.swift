@@ -18,6 +18,7 @@
 //  <https://www.gnu.org/licenses/>.
 //
 
+import AppKit
 import SwiftUI
 
 /// Root view for the Settings window. NavigationSplitView with the
@@ -40,6 +41,42 @@ struct SettingsRootView: View {
             )
         }
         .navigationTitle("Waraq Settings")
+        .toolbarBackground(.visible, for: .windowToolbar)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .background(SettingsWindowConfigurator())
+    }
+}
+
+private struct SettingsWindowConfigurator: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        WindowView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        Self.scheduleConfiguration(for: nsView.window)
+    }
+
+    private static func scheduleConfiguration(for window: NSWindow?) {
+        guard let window else { return }
+        DispatchQueue.main.async {
+            configure(window)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            configure(window)
+        }
+    }
+
+    private static func configure(_ window: NSWindow) {
+        window.toolbar?.isVisible = false
+        window.titleVisibility = .visible
+        window.titlebarAppearsTransparent = false
+    }
+
+    private final class WindowView: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            SettingsWindowConfigurator.scheduleConfiguration(for: window)
+        }
     }
 }
 

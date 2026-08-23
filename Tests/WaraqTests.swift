@@ -220,6 +220,55 @@ final class WaraqTests: XCTestCase {
     }
 
     @MainActor
+    func testRenderQualityPresetsAndFrameRateCaps() {
+        XCTAssertNil(RenderQuality.auto.maximumVideoDimension)
+        XCTAssertNil(RenderQuality.high.maximumFrameRate)
+        XCTAssertEqual(RenderQuality.medium.maximumVideoDimension, 1080)
+        XCTAssertEqual(RenderQuality.medium.maximumFrameRate, 60)
+        XCTAssertEqual(RenderQuality.low.maximumVideoDimension, 720)
+        XCTAssertEqual(RenderQuality.low.maximumFrameRate, 30)
+
+        let defaults = UserDefaults.standard
+        let quality = defaults.object(forKey: "renderQuality")
+        let capFrameRate = defaults.object(forKey: "capFrameRate")
+        let displayCaps = defaults.object(forKey: "displayFrameRateCaps")
+        defer {
+            if let quality { defaults.set(quality, forKey: "renderQuality") }
+            else { defaults.removeObject(forKey: "renderQuality") }
+            if let capFrameRate {
+                defaults.set(capFrameRate, forKey: "capFrameRate")
+            } else {
+                defaults.removeObject(forKey: "capFrameRate")
+            }
+            if let displayCaps {
+                defaults.set(displayCaps, forKey: "displayFrameRateCaps")
+            } else {
+                defaults.removeObject(forKey: "displayFrameRateCaps")
+            }
+        }
+
+        let displayID = NSScreen.main?.deviceDescription[
+            NSDeviceDescriptionKey("NSScreenNumber")
+        ] as? CGDirectDisplayID ?? 0
+        defaults.set("low", forKey: "renderQuality")
+        defaults.set(true, forKey: "capFrameRate")
+        PerformanceRenderSettings.setDisplayFrameRateCap(
+            120,
+            for: displayID
+        )
+        XCTAssertEqual(
+            PerformanceRenderSettings.effectiveFrameRate(for: displayID),
+            30
+        )
+
+        defaults.set("high", forKey: "renderQuality")
+        defaults.set(false, forKey: "capFrameRate")
+        XCTAssertNil(
+            PerformanceRenderSettings.effectiveFrameRate(for: displayID)
+        )
+    }
+
+    @MainActor
     func testWallpaperLibraryHasBuiltIn() {
         let library = WallpaperLibrary()
         XCTAssertFalse(library.wallpapers.isEmpty)

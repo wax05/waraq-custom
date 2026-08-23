@@ -23,6 +23,120 @@ import Combine
 import Foundation
 import IOKit.ps
 
+enum RenderQuality: String, CaseIterable, Identifiable {
+    case auto
+    case high
+    case medium
+    case low
+
+    var id: String { rawValue }
+
+    /// Maximum video output dimension for the quality preset.
+    /// Auto and High keep the source resolution.
+    var maximumVideoDimension: CGFloat? {
+        switch self {
+        case .auto, .high: nil
+        case .medium: 1080
+        case .low: 720
+        }
+    }
+
+    /// Quality presets below High also carry a frame-rate limit.
+    var maximumFrameRate: Double? {
+        switch self {
+        case .auto, .high: nil
+        case .medium: 60
+        case .low: 30
+        }
+    }
+}
+
+enum PerformanceRenderSettings {
+    static let didChangeNotification = Notification.Name(
+        "Waraq.performanceRenderSettingsDidChange"
+    )
+
+    private static let defaults = UserDefaults.standard
+    private static let displayFrameRateCapsKey = "displayFrameRateCaps"
+
+    static var quality: RenderQuality {
+        let raw = defaults.string(forKey: "renderQuality") ?? "auto"
+        return RenderQuality(rawValue: raw) ?? .auto
+    }
+
+    static var capFrameRate: Bool {
+        guard defaults.object(forKey: "capFrameRate") != nil else {
+            return true
+        }
+        return defaults.bool(forKey: "capFrameRate")
+    }
+
+    static func displayFrameRateCap(for displayID: CGDirectDisplayID) -> Double {
+        let map = defaults.dictionary(forKey: displayFrameRateCapsKey) ?? [:]
+        if let stored = map[String(displayID)] as? Double {
+            return clamp(stored)
+        }
+
+        let refreshRate = NSScreen.screens.first {
+            $0.displayID == displayID
+        }?.maximumFramesPerSecond ?? 60
+        return clamp(Double(refreshRate))
+    }
+
+    static func setDisplayFrameRateCap(
+        _ frameRate: Double,
+        for displayID: CGDirectDisplayID
+    ) {
+        var map = defaults.dictionary(forKey: displayFrameRateCapsKey) ?? [:]
+        map[String(displayID)] = clamp(frameRate)
+        defaults.set(map, forKey: displayFrameRateCapsKey)
+        notifyChanged()
+    }
+
+    /// Returns the effective cap for a display. Quality presets always
+    /// enforce their own ceiling; the per-display cap is optional.
+    static func effectiveFrameRate(for displayID: CGDirectDisplayID) -> Double? {
+        var limits: [Double] = []
+        if let qualityLimit = quality.maximumFrameRate {
+            limits.append(qualityLimit)
+        }
+        if capFrameRate {
+            limits.append(displayFrameRateCap(for: displayID))
+        }
+        return limits.min()
+    }
+
+    static func throttledFrameRate(for displayID: CGDirectDisplayID) -> Double {
+        let normal = effectiveFrameRate(for: displayID)
+            ?? displayFrameRateCap(for: displayID)
+        return max(10, normal / 2)
+    }
+
+    /// Procedural SwiftUI views cannot render above a display's useful
+    /// refresh rate, even when the video path is uncapped.
+    static func proceduralFrameRate(
+        for displayID: CGDirectDisplayID,
+        throttled: Bool = false
+    ) -> Double {
+        if throttled {
+            return throttledFrameRate(for: displayID)
+        }
+        return effectiveFrameRate(for: displayID)
+            ?? displayFrameRateCap(for: displayID)
+    }
+
+    static func notifyChanged() {
+        NotificationCenter.default.post(
+            name: didChangeNotification,
+            object: nil
+        )
+    }
+
+    private static func clamp(_ value: Double) -> Double {
+        min(max(value.rounded(), 10), 120)
+    }
+}
+
 /// Observes the system and decides whether each display should
 /// Play, Pause, or Throttle. Wired into DisplayManager which
 /// drives the actual engines accordingly.

@@ -22,6 +22,7 @@ import AppKit
 import AVFoundation
 
 final class VideoEngine: NSObject {
+    private let asset: AVAsset
     private let player: AVPlayer
     private let playerItem: AVPlayerItem
 
@@ -54,10 +55,15 @@ final class VideoEngine: NSObject {
 
     var loop: Bool = true
 
+    private(set) var renderFrameRate: Double?
+    private(set) var renderScale: Float = 1
+
     private var presentationSizeObserver: NSKeyValueObservation?
 
     init(videoURL: URL, fitMode: DisplaySettings.FitMode = .fill) {
-        playerItem = AVPlayerItem(url: videoURL)
+        let asset = AVURLAsset(url: videoURL)
+        self.asset = asset
+        playerItem = AVPlayerItem(asset: asset)
         player = AVPlayer(playerItem: playerItem)
         player.isMuted = true
         player.actionAtItemEnd = .none
@@ -97,6 +103,64 @@ final class VideoEngine: NSObject {
 
     func pause() {
         player.pause()
+    }
+
+    /// Applies the shared performance preset without replacing the
+    /// AVPlayerLayer path. AVVideoComposition lets AVFoundation limit
+    /// composed output cadence and scale before the layer is presented.
+    func applyRenderSettings(
+        quality: RenderQuality,
+        maximumFrameRate: Double?
+    ) {
+        let frameRate = maximumFrameRate.map {
+            min(max($0, 10), 120)
+        }
+        let scale = renderScale(for: quality)
+
+        guard frameRate != nil || scale < 1 else {
+            playerItem.videoComposition = nil
+            renderFrameRate = nil
+            renderScale = 1
+            return
+        }
+
+        guard let track = asset.tracks(withMediaType: .video).first else {
+            playerItem.videoComposition = nil
+            renderFrameRate = nil
+            renderScale = 1
+            return
+        }
+
+        let composition = AVMutableVideoComposition()
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(
+            start: .zero,
+            duration: asset.duration
+        )
+        let layerInstruction = AVMutableVideoCompositionLayerInstruction(
+            assetTrack: track
+        )
+        layerInstruction.setTransform(track.preferredTransform, at: .zero)
+        instruction.layerInstructions = [layerInstruction]
+        composition.instructions = [instruction]
+        let transformedSize = track.naturalSize.applying(
+            track.preferredTransform
+        )
+        composition.renderSize = CGSize(
+            width: abs(transformedSize.width),
+            height: abs(transformedSize.height)
+        )
+        composition.sourceTrackIDForFrameTiming = kCMPersistentTrackID_Invalid
+        if let frameRate {
+            composition.frameDuration = CMTime(
+                seconds: 1 / frameRate,
+                preferredTimescale: 600
+            )
+        }
+        composition.renderScale = scale
+        playerItem.videoComposition = composition
+        renderFrameRate = frameRate
+        renderScale = scale
     }
 
     @objc
@@ -222,6 +286,24 @@ final class VideoEngine: NSObject {
         let p = playerItem.presentationSize
         if p == .zero { return fallback }
         return p
+    }
+
+    private func renderScale(for quality: RenderQuality) -> Float {
+        guard let maximum = quality.maximumVideoDimension,
+              let track = asset.tracks(withMediaType: .video).first else
+        {
+            return 1
+        }
+
+        let transformed = track.naturalSize.applying(track.preferredTransform)
+        let sourceDimension = max(
+            abs(transformed.width),
+            abs(transformed.height)
+        )
+        guard sourceDimension > maximum, sourceDimension.isFinite else {
+            return 1
+        }
+        return Float(maximum / sourceDimension)
     }
 
     /// Number of `unit`-sized tiles needed to cover `total`, clamped

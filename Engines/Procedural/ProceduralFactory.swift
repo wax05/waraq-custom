@@ -27,20 +27,37 @@ enum ProceduralFactory {
     /// The SwiftUI view that renders a procedural key. Single source of
     /// truth, reused both for the live NSHostingView and for offscreen
     /// thumbnail capture (ProceduralThumbnailGenerator).
-    static func swiftUIView(for key: String) -> AnyView? {
+    static func swiftUIView(
+        for key: String,
+        frameRate: Double? = nil
+    ) -> AnyView? {
+        let frameRate = frameRate ?? defaultFrameRate(for: key)
         switch key {
-        case "aurora": AnyView(AuroraView())
-        case "matrix-rain": AnyView(MatrixRainView())
-        case "synthwave": AnyView(SynthwaveView())
-        case "starfield": AnyView(StarfieldView())
-        case "neural-network": AnyView(NeuralNetworkView())
-        default: nil
+        case "aurora": return AnyView(AuroraView(frameRate: frameRate))
+        case "matrix-rain":
+            return AnyView(MatrixRainView(frameRate: frameRate))
+        case "synthwave":
+            return AnyView(SynthwaveView(frameRate: frameRate))
+        case "starfield":
+            return AnyView(StarfieldView(frameRate: frameRate))
+        case "neural-network":
+            return AnyView(NeuralNetworkView(frameRate: frameRate))
+        default: return nil
         }
     }
 
-    static func makeView(for key: String) -> NSView? {
-        guard let view = swiftUIView(for: key) else { return nil }
+    static func makeView(
+        for key: String,
+        frameRate: Double? = nil
+    ) -> NSView? {
+        guard let view = swiftUIView(for: key, frameRate: frameRate) else {
+            return nil
+        }
         return NSHostingView(rootView: view)
+    }
+
+    private static func defaultFrameRate(for key: String) -> Double {
+        key == "starfield" ? 60 : 30
     }
 
     static let allBuiltIns: [Wallpaper] = [

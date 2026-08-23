@@ -18,6 +18,7 @@
 //  <https://www.gnu.org/licenses/>.
 //
 
+import AppKit
 import SwiftUI
 
 struct PerformancePane: View {
@@ -54,6 +55,7 @@ struct PerformancePane: View {
     private var yieldToGPUApps: Bool = false
 
     @State private var showingExemptions = false
+    @State private var displayFrameRateCaps: [CGDirectDisplayID: Double] = [:]
 
     var body: some View {
         ScrollView {
@@ -74,6 +76,18 @@ struct PerformancePane: View {
         }
         .sheet(isPresented: $showingExemptions) {
             ExemptionListSheet()
+        }
+        .onAppear {
+            reloadDisplayFrameRateCaps()
+        }
+        .onChange(of: displayManager.displays) { _, _ in
+            reloadDisplayFrameRateCaps()
+        }
+        .onChange(of: renderQuality) { _, _ in
+            PerformanceRenderSettings.notifyChanged()
+        }
+        .onChange(of: capFrameRate) { _, _ in
+            PerformanceRenderSettings.notifyChanged()
         }
     }
 
@@ -314,6 +328,10 @@ struct PerformancePane: View {
                     Toggle("", isOn: $capFrameRate)
                         .toggleStyle(.switch).labelsHidden()
                 }
+                if capFrameRate {
+                    Divider()
+                    displayFrameRateControls
+                }
                 Divider()
                 SettingRow(
                     title: "Drop frames on heavy load",
@@ -324,6 +342,70 @@ struct PerformancePane: View {
                 }
             }
         }
+    }
+
+    private var displayFrameRateControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(displayManager.displays) { display in
+                frameRateRow(for: display)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private func frameRateRow(
+        for display: DisplayManager.DisplayInfo
+    ) -> some View {
+        let binding = frameRateBinding(for: display.id)
+
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(display.name)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Text("\(Int(binding.wrappedValue)) fps")
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 58, alignment: .trailing)
+            }
+            Slider(value: binding, in: 10...120, step: 1)
+        }
+    }
+
+    private func frameRateBinding(
+        for displayID: CGDirectDisplayID
+    ) -> Binding<Double> {
+        Binding(
+            get: {
+                displayFrameRateCaps[displayID]
+                    ?? PerformanceRenderSettings.displayFrameRateCap(
+                        for: displayID
+                    )
+            },
+            set: { value in
+                let cap = min(max(value.rounded(), 10), 120)
+                displayFrameRateCaps[displayID] = cap
+                PerformanceRenderSettings.setDisplayFrameRateCap(
+                    cap,
+                    for: displayID
+                )
+            }
+        )
+    }
+
+    private func reloadDisplayFrameRateCaps() {
+        displayFrameRateCaps = Dictionary(
+            uniqueKeysWithValues: displayManager.displays.map { display in
+                (
+                    display.id,
+                    PerformanceRenderSettings.displayFrameRateCap(
+                        for: display.id
+                    )
+                )
+            }
+        )
     }
 
     private var advancedResourceLimits: some View {

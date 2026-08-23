@@ -45,9 +45,12 @@ final class DisplayManager: ObservableObject {
     private var gradients: [CGDirectDisplayID: GradientWallpaper] = [:]
     private var gifEngines: [CGDirectDisplayID: GifEngine] = [:]
     private var proceduralViews: [CGDirectDisplayID: NSView] = [:]
+    private var proceduralKeys: [CGDirectDisplayID: String] = [:]
+    private var throttledDisplays: Set<CGDirectDisplayID> = []
 
     private var screenObserver: NSObjectProtocol?
     private var governorCancellable: AnyCancellable?
+    private var renderSettingsObserver: NSObjectProtocol?
 
     struct DisplayInfo: Identifiable, Equatable {
         let id: CGDirectDisplayID
@@ -84,6 +87,16 @@ final class DisplayManager: ObservableObject {
                 }
             }
 
+        renderSettingsObserver = NotificationCenter.default.addObserver(
+            forName: PerformanceRenderSettings.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.applyRenderSettings()
+            }
+        }
+
         resourceMonitor.start()
     }
 
@@ -96,21 +109,80 @@ final class DisplayManager: ObservableObject {
         for (id, target) in state {
             switch target {
             case .playing:
+                let changed = throttledDisplays.remove(id) != nil
+                if changed {
+                    if let engine = videoEngines[id] {
+                        applyRenderSettings(to: engine, for: id)
+                    }
+                    reloadProceduralView(for: id)
+                }
                 videoEngines[id]?.play()
                 gradients[id]?.setPaused(false)
                 gifEngines[id]?.play()
-            case .paused, .throttled:
-                // Phase 4 simplification: throttled treated as
-                // paused. Future phases will halve FPS instead.
+            case .paused:
                 videoEngines[id]?.pause()
                 gradients[id]?.setPaused(true)
                 gifEngines[id]?.pause()
+            case .throttled:
+                let changed = throttledDisplays.insert(id).inserted
+                if changed {
+                    if let engine = videoEngines[id] {
+                        applyRenderSettings(to: engine, for: id)
+                    }
+                    reloadProceduralView(for: id)
+                }
+                videoEngines[id]?.play()
+                gradients[id]?.setPaused(false)
+                gifEngines[id]?.play()
             }
         }
     }
 
+    private func applyRenderSettings() {
+        for (id, engine) in videoEngines {
+            applyRenderSettings(to: engine, for: id)
+        }
+
+        for id in proceduralKeys.keys {
+            reloadProceduralView(for: id)
+        }
+    }
+
+    private func applyRenderSettings(
+        to engine: VideoEngine,
+        for displayID: CGDirectDisplayID
+    ) {
+        let frameRate: Double? = if throttledDisplays.contains(displayID) {
+            PerformanceRenderSettings.throttledFrameRate(for: displayID)
+        } else {
+            PerformanceRenderSettings.effectiveFrameRate(for: displayID)
+        }
+        engine.applyRenderSettings(
+            quality: PerformanceRenderSettings.quality,
+            maximumFrameRate: frameRate
+        )
+    }
+
+    private func reloadProceduralView(for displayID: CGDirectDisplayID) {
+        guard let key = proceduralKeys[displayID],
+              let window = windows[displayID],
+              let view = ProceduralFactory.makeView(
+                  for: key,
+                  frameRate: PerformanceRenderSettings.proceduralFrameRate(
+                      for: displayID,
+                      throttled: throttledDisplays.contains(displayID)
+                  )
+              ) else { return }
+
+        window.install(view: view)
+        proceduralViews[displayID] = view
+    }
+
     deinit {
         if let observer = screenObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = renderSettingsObserver {
             NotificationCenter.default.removeObserver(observer)
         }
     }
@@ -128,6 +200,8 @@ final class DisplayManager: ObservableObject {
             gradients.removeValue(forKey: id)
             gifEngines.removeValue(forKey: id)
             proceduralViews.removeValue(forKey: id)
+            proceduralKeys.removeValue(forKey: id)
+            throttledDisplays.remove(id)
         }
 
         // Spawn windows for displays that appeared.
@@ -236,10 +310,17 @@ final class DisplayManager: ObservableObject {
 
         case .procedural:
             if let key = wallpaper.proceduralKey,
-               let view = ProceduralFactory.makeView(for: key)
+               let view = ProceduralFactory.makeView(
+                   for: key,
+                   frameRate: PerformanceRenderSettings.proceduralFrameRate(
+                       for: id,
+                       throttled: throttledDisplays.contains(id)
+                   )
+               )
             {
                 window.install(view: view)
                 proceduralViews[id] = view
+                proceduralKeys[id] = key
             } else {
                 installGradient(into: window, id: id)
             }
@@ -253,6 +334,7 @@ final class DisplayManager: ObservableObject {
                 engine.isMuted = settings.muted || isMuted
                 engine.volume = Float(settings.volume)
                 engine.loop = settings.loop
+                applyRenderSettings(to: engine, for: id)
                 window.install(layer: engine.layer)
                 if !isPaused { engine.play() }
                 videoEngines[id] = engine
@@ -519,6 +601,8 @@ final class DisplayManager: ObservableObject {
         gradients.removeValue(forKey: displayID)
         gifEngines.removeValue(forKey: displayID)
         proceduralViews.removeValue(forKey: displayID)
+        proceduralKeys.removeValue(forKey: displayID)
+        throttledDisplays.remove(displayID)
     }
 
     func setDisplayEnabled(displayID: CGDirectDisplayID, enabled: Bool) {

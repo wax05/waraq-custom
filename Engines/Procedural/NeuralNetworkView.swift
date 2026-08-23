@@ -37,8 +37,14 @@ struct NeuralNetworkView: View {
         )
     }
 
+    private let frameRate: Double
+
+    init(frameRate: Double = 30) {
+        self.frameRate = max(1, frameRate)
+    }
+
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / frameRate)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             Canvas { ctx, size in
                 // Deep tech background
