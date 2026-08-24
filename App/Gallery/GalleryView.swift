@@ -37,6 +37,10 @@ struct GalleryView: View {
         var id: String {
             rawValue
         }
+
+        var label: LocalizedStringKey {
+            LocalizedStringKey(rawValue)
+        }
     }
 
     private let columns = [
@@ -71,7 +75,7 @@ struct GalleryView: View {
     private var tabPicker: some View {
         Picker("View", selection: $tab) {
             ForEach(GalleryTab.allCases) { tab in
-                Text(tab.rawValue).tag(tab)
+                Text(tab.label).tag(tab)
             }
         }
         .pickerStyle(.segmented)
@@ -313,7 +317,9 @@ struct GalleryView: View {
     }
 
     private func messageBlock(
-        icon: String, title: String, subtitle: String
+        icon: String,
+        title: LocalizedStringKey,
+        subtitle: LocalizedStringKey
     ) -> some View {
         VStack(spacing: 8) {
             Image(systemName: icon)

@@ -42,6 +42,7 @@ final class DisplayManager: ObservableObject {
 
     private var windows: [CGDirectDisplayID: WallpaperWindow] = [:]
     private var videoEngines: [CGDirectDisplayID: VideoEngine] = [:]
+    private var videoWallpaperIDs: [CGDirectDisplayID: String] = [:]
     private var gradients: [CGDirectDisplayID: GradientWallpaper] = [:]
     private var gifEngines: [CGDirectDisplayID: GifEngine] = [:]
     private var proceduralViews: [CGDirectDisplayID: NSView] = [:]
@@ -170,6 +171,17 @@ final class DisplayManager: ObservableObject {
         } else {
             PerformanceRenderSettings.effectiveFrameRate(for: displayID)
         }
+
+        if let wallpaperID = videoWallpaperIDs[displayID],
+           let wallpaper = library.wallpaper(forID: wallpaperID),
+           let playbackURL = library.playbackURL(
+               for: wallpaper,
+               maximumFrameRate: playbackFrameRateLimit(for: displayID)
+           )
+        {
+            engine.replaceVideo(with: playbackURL)
+        }
+
         engine.applyRenderSettings(
             quality: PerformanceRenderSettings.quality,
             maximumFrameRate: frameRate
@@ -200,6 +212,7 @@ final class DisplayManager: ObservableObject {
                   for: key,
                   frameRate: PerformanceRenderSettings.proceduralFrameRate(
                       for: displayID,
+                      key: key,
                       throttled: throttledDisplays.contains(displayID)
                   )
               ) else { return }
@@ -230,6 +243,7 @@ final class DisplayManager: ObservableObject {
             window.orderOut(nil)
             windows.removeValue(forKey: id)
             videoEngines.removeValue(forKey: id)
+            videoWallpaperIDs.removeValue(forKey: id)
             gradients.removeValue(forKey: id)
             gifEngines.removeValue(forKey: id)
             proceduralViews.removeValue(forKey: id)
@@ -237,10 +251,15 @@ final class DisplayManager: ObservableObject {
             throttledDisplays.remove(id)
         }
 
-        // Spawn windows for displays that appeared.
+        // Spawn windows for displays that appeared and keep existing
+        // wallpaper windows aligned with resolution/scale changes.
         for screen in currentScreens {
             guard let id = screen.displayID else { continue }
-            if windows[id] == nil {
+            if let window = windows[id] {
+                if window.frame != screen.frame {
+                    window.setFrame(screen.frame, display: true, animate: false)
+                }
+            } else {
                 spawnWindow(for: screen, id: id)
             }
         }
@@ -347,6 +366,7 @@ final class DisplayManager: ObservableObject {
                    for: key,
                    frameRate: PerformanceRenderSettings.proceduralFrameRate(
                        for: id,
+                       key: key,
                        throttled: throttledDisplays.contains(id)
                    )
                )
@@ -374,6 +394,7 @@ final class DisplayManager: ObservableObject {
                 window.install(layer: engine.layer)
                 if !isPaused { engine.play() }
                 videoEngines[id] = engine
+                videoWallpaperIDs[id] = wallpaper.id
             } else {
                 installGradient(into: window, id: id)
             }
@@ -471,15 +492,30 @@ final class DisplayManager: ObservableObject {
         screen: NSScreen
     ) -> (Wallpaper, DisplaySettings) {
         let alert = NSAlert()
-        alert.messageText = "Display reconnected: \(screen.localizedName)"
+        alert.messageText = String(
+            format: NSLocalizedString(
+                "Display reconnected: %@",
+                comment: "Display alert title"
+            ),
+            screen.localizedName
+        )
         let savedName = library.wallpaper(
             forID: profile.wallpaperID
-        )?.name ?? "previous wallpaper"
-        alert.informativeText = "Waraq has a saved wallpaper for this display (\(savedName)). What would you like to apply?"
+        )?.localizedName ?? NSLocalizedString(
+            "previous wallpaper",
+            comment: "Display alert fallback"
+        )
+        alert.informativeText = String(
+            format: NSLocalizedString(
+                "Waraq has a saved wallpaper for this display (%@). What would you like to apply?",
+                comment: "Display alert message"
+            ),
+            savedName
+        )
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "Use saved")
-        alert.addButton(withTitle: "Use default")
-        alert.addButton(withTitle: "Decide later")
+        alert.addButton(withTitle: NSLocalizedString("Use saved", comment: "Display alert button"))
+        alert.addButton(withTitle: NSLocalizedString("Use default", comment: "Display alert button"))
+        alert.addButton(withTitle: NSLocalizedString("Decide later", comment: "Display alert button"))
 
         let response = alert.runModal()
         switch response {
@@ -500,11 +536,20 @@ final class DisplayManager: ObservableObject {
         screen: NSScreen
     ) -> (Wallpaper, DisplaySettings) {
         let alert = NSAlert()
-        alert.messageText = "New display detected: \(screen.localizedName)"
-        alert.informativeText = "Apply your default wallpaper, or skip and configure later?"
+        alert.messageText = String(
+            format: NSLocalizedString(
+                "New display detected: %@",
+                comment: "Display alert title"
+            ),
+            screen.localizedName
+        )
+        alert.informativeText = NSLocalizedString(
+            "Apply your default wallpaper, or skip and configure later?",
+            comment: "Display alert message"
+        )
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "Apply default")
-        alert.addButton(withTitle: "Skip for now")
+        alert.addButton(withTitle: NSLocalizedString("Apply default", comment: "Display alert button"))
+        alert.addButton(withTitle: NSLocalizedString("Skip for now", comment: "Display alert button"))
 
         let response = alert.runModal()
         switch response {
@@ -571,6 +616,16 @@ final class DisplayManager: ObservableObject {
         return WallpaperLibrary.builtInGradient
     }
 
+    /// Returns the wallpaper currently represented by a display assignment.
+    /// Disabled displays intentionally return nil so menu-bar previews can
+    /// remove their image instead of showing stale content.
+    func currentWallpaper(for displayID: CGDirectDisplayID) -> Wallpaper? {
+        guard DisplaySettingsStore.settings(for: displayID).enabled else {
+            return nil
+        }
+        return wallpaperToSpawn(for: displayID)
+    }
+
     /// Save a wallpaper assignment for a display and respawn its
     /// window so the new wallpaper is visible immediately.
     func reassignWallpaper(
@@ -598,6 +653,8 @@ final class DisplayManager: ObservableObject {
         }) {
             spawnWindow(for: screen, id: displayID)
         }
+
+        objectWillChange.send()
     }
 
     /// Fully dismantle the wallpaper window and all of its
@@ -652,6 +709,7 @@ final class DisplayManager: ObservableObject {
         //    content view, hosting views, layers, and engines.
         windows.removeValue(forKey: displayID)
         videoEngines.removeValue(forKey: displayID)
+        videoWallpaperIDs.removeValue(forKey: displayID)
         gradients.removeValue(forKey: displayID)
         gifEngines.removeValue(forKey: displayID)
         proceduralViews.removeValue(forKey: displayID)

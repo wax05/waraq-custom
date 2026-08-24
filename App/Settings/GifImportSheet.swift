@@ -133,27 +133,39 @@ struct GifImportSheet: View {
             return Detected(
                 icon: "photo.stack",
                 color: .green,
-                description: "Direct GIF · will stream and animate"
+                description: NSLocalizedString(
+                    "Direct GIF · will stream and animate",
+                    comment: "GIF URL detection"
+                )
             )
         }
         if host.contains("giphy.com") {
             return Detected(
                 icon: "photo.stack",
                 color: .pink,
-                description: "Giphy URL · use the direct media link ending in .gif"
+                description: NSLocalizedString(
+                    "Giphy URL · use the direct media link ending in .gif",
+                    comment: "GIF URL detection"
+                )
             )
         }
         if host.contains("tenor.com") {
             return Detected(
                 icon: "photo.stack",
                 color: .blue,
-                description: "Tenor URL · use the direct media link ending in .gif"
+                description: NSLocalizedString(
+                    "Tenor URL · use the direct media link ending in .gif",
+                    comment: "GIF URL detection"
+                )
             )
         }
         return Detected(
             icon: "questionmark.circle",
             color: .orange,
-            description: "Not recognized as a GIF URL"
+            description: NSLocalizedString(
+                "Not recognized as a GIF URL",
+                comment: "GIF URL detection"
+            )
         )
     }
 

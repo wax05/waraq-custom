@@ -36,13 +36,31 @@ enum WallpaperEngineImporter {
         var errorDescription: String? {
             switch self {
             case .unzipFailed:
-                "Could not unpack the .we archive."
+                NSLocalizedString(
+                    "Could not unpack the .we archive.",
+                    comment: "Wallpaper Engine import error"
+                )
             case .missingProjectJSON:
-                "The .we archive doesn't contain a project.json."
+                NSLocalizedString(
+                    "The .we archive doesn't contain a project.json.",
+                    comment: "Wallpaper Engine import error"
+                )
             case let .unsupportedType(t):
-                "Wallpaper type '\(t)' is not supported. Waraq currently imports video wallpapers only."
+                String(
+                    format: NSLocalizedString(
+                        "Wallpaper type '%@' is not supported. Waraq currently imports video wallpapers only.",
+                        comment: "Wallpaper Engine import error"
+                    ),
+                    t
+                )
             case let .missingMediaFile(name):
-                "Could not find the media file '\(name)' inside the archive."
+                String(
+                    format: NSLocalizedString(
+                        "Could not find the media file '%@' inside the archive.",
+                        comment: "Wallpaper Engine import error"
+                    ),
+                    name
+                )
             case let .underlyingLibraryError(e):
                 e.localizedDescription
             }

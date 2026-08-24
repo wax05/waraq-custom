@@ -122,13 +122,19 @@ enum PerformanceRenderSettings {
     /// refresh rate, even when the video path is uncapped.
     static func proceduralFrameRate(
         for displayID: CGDirectDisplayID,
+        key: String? = nil,
         throttled: Bool = false
     ) -> Double {
-        if throttled {
-            return throttledFrameRate(for: displayID)
-        }
-        return effectiveFrameRate(for: displayID)
-            ?? displayFrameRateCap(for: displayID)
+        let requested = throttled
+            ? throttledFrameRate(for: displayID)
+            : effectiveFrameRate(for: displayID)
+                ?? displayFrameRateCap(for: displayID)
+        guard let key else { return requested }
+
+        // SwiftUI procedurals do not benefit equally from a 120 Hz tick.
+        // Keep the one particle-heavy scene at 60 Hz and the rest at 30 Hz.
+        let implementationMaximum = key == "starfield" ? 60.0 : 30.0
+        return min(requested, implementationMaximum)
     }
 
     static func notifyChanged() {
@@ -182,6 +188,7 @@ final class PerformanceGovernor: ObservableObject {
     private var spaceChangeObserver: NSObjectProtocol?
     private var screenSleepObserver: NSObjectProtocol?
     private var screenWakeObserver: NSObjectProtocol?
+    private var settingsObserver: NSObjectProtocol?
 
     // Internal state
     private var isScreenLocked = false
@@ -195,15 +202,7 @@ final class PerformanceGovernor: ObservableObject {
 
         installObservers()
         refreshState()
-
-        // Poll battery and fullscreen every 5 seconds.
-        batteryPoll = Timer.scheduledTimer(
-            withTimeInterval: 5.0, repeats: true
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.pollAdHoc()
-            }
-        }
+        updateAdHocPolling()
     }
 
     deinit {
@@ -215,6 +214,7 @@ final class PerformanceGovernor: ObservableObject {
             spaceChangeObserver,
             screenSleepObserver,
             screenWakeObserver,
+            settingsObserver,
         ]
         .compactMap { $0 }
         .forEach { NotificationCenter.default.removeObserver($0) }
@@ -333,6 +333,17 @@ final class PerformanceGovernor: ObservableObject {
         let dnc = DistributedNotificationCenter.default()
         let wsnc = NSWorkspace.shared.notificationCenter
 
+        settingsObserver = nc.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.updateAdHocPolling()
+                self?.refreshState()
+            }
+        }
+
         thermalObserver = nc.addObserver(
             forName: ProcessInfo.thermalStateDidChangeNotification,
             object: nil, queue: .main
@@ -399,8 +410,33 @@ final class PerformanceGovernor: ObservableObject {
     }
 
     private func pollAdHoc() {
-        detectFullscreenApp()
+        if pauseOnFullscreen {
+            detectFullscreenApp()
+        } else {
+            fullscreenAppBundleID = nil
+        }
         refreshState()
+    }
+
+    private func updateAdHocPolling() {
+        batteryPoll?.invalidate()
+        batteryPoll = nil
+
+        guard pauseOnFullscreen || (isPortable && pauseOnBattery) else {
+            fullscreenAppBundleID = nil
+            return
+        }
+
+        // Battery and fullscreen are the only governor inputs without an
+        // event notification. Do not keep a periodic window scan alive when
+        // both features are disabled or this is a desktop Mac.
+        batteryPoll = Timer.scheduledTimer(
+            withTimeInterval: 5.0, repeats: true
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.pollAdHoc()
+            }
+        }
     }
 
     private func detectFullscreenApp() {
@@ -532,11 +568,11 @@ final class PerformanceGovernor: ObservableObject {
         for state: ProcessInfo.ThermalState
     ) -> String {
         switch state {
-        case .nominal: "Nominal"
-        case .fair: "Fair"
-        case .serious: "Serious"
-        case .critical: "Critical"
-        @unknown default: "Unknown"
+        case .nominal: NSLocalizedString("Nominal", comment: "Thermal state")
+        case .fair: NSLocalizedString("Fair", comment: "Thermal state")
+        case .serious: NSLocalizedString("Serious", comment: "Thermal state")
+        case .critical: NSLocalizedString("Critical", comment: "Thermal state")
+        @unknown default: NSLocalizedString("Unknown", comment: "Thermal state")
         }
     }
 }

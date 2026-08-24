@@ -117,6 +117,17 @@ struct PerformancePane: View {
         let cpuColor: Color = cpu > 10 ? .orange : .green
         let memColor: Color = mem > 200 ? .orange : .green
         let displays = displayManager.displays.count
+        let statusKey = displays == 1
+            ? "Playing on %d display · Thermal: %@"
+            : "Playing on %d displays · Thermal: %@"
+        let playbackStatus = String(
+            format: NSLocalizedString(
+                statusKey,
+                comment: "Performance playback status"
+            ),
+            displays,
+            displayManager.governor.thermalStateLabel
+        )
 
         return HStack(spacing: 12) {
             Image(systemName: "leaf")
@@ -137,7 +148,7 @@ struct PerformancePane: View {
                     Text(" right now")
                         .font(.system(size: 12))
                 }
-                Text("Playing on \(displays) display\(displays == 1 ? "" : "s") · Thermal: \(displayManager.governor.thermalStateLabel)")
+                Text(playbackStatus)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
@@ -445,7 +456,7 @@ struct PerformancePane: View {
         }
     }
 
-    private func sectionHeader(_ title: String) -> some View {
+    private func sectionHeader(_ title: LocalizedStringKey) -> some View {
         Text(title)
             .font(.system(size: 11, weight: .medium))
             .tracking(0.5)

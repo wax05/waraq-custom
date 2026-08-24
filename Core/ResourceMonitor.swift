@@ -23,7 +23,8 @@ import Darwin
 import Foundation
 
 /// Lightweight CPU% and RAM (MB) reporter for the Waraq process.
-/// Polls once per second when started.
+/// Polls every five seconds by default; the diagnostics pane temporarily
+/// raises the cadence while it is visible.
 @MainActor
 final class ResourceMonitor: ObservableObject {
     static let shared = ResourceMonitor()
@@ -33,12 +34,17 @@ final class ResourceMonitor: ObservableObject {
     @Published private(set) var isRunning: Bool = false
 
     private var timer: Timer?
+    private var pollingInterval: TimeInterval?
 
-    func start() {
-        guard !isRunning else { return }
+    func start(interval: TimeInterval = 5.0) {
+        let interval = max(interval, 0.25)
+        if isRunning, pollingInterval == interval { return }
+
+        timer?.invalidate()
         isRunning = true
+        pollingInterval = interval
         sample()
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) {
             [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.sample()
@@ -49,6 +55,7 @@ final class ResourceMonitor: ObservableObject {
     func stop() {
         timer?.invalidate()
         timer = nil
+        pollingInterval = nil
         isRunning = false
     }
 

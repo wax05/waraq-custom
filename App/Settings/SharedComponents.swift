@@ -40,13 +40,13 @@ struct Card<Content: View>: View {
 /// A row inside a Card: title (+optional sublabel) on the left,
 /// trailing control on the right.
 struct SettingRow<Trailing: View>: View {
-    let title: String
-    let sublabel: String?
+    let title: LocalizedStringKey
+    let sublabel: LocalizedStringKey?
     @ViewBuilder let trailing: () -> Trailing
 
     init(
-        title: String,
-        sublabel: String? = nil,
+        title: LocalizedStringKey,
+        sublabel: LocalizedStringKey? = nil,
         @ViewBuilder trailing: @escaping () -> Trailing
     ) {
         self.title = title

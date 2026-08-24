@@ -25,17 +25,17 @@ struct AboutPane: View {
     @EnvironmentObject var displayManager: DisplayManager
 
     private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"]
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
             as? String ?? "0.0"
     }
 
     private var buildNumber: String {
-        Bundle.main.infoDictionary?["CFBundleVersion"]
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion")
             as? String ?? "1"
     }
 
     private var releaseNote: String {
-        Bundle.main.infoDictionary?["WaraqReleaseNotes"]
+        Bundle.main.object(forInfoDictionaryKey: "WaraqReleaseNotes")
             as? String ?? ""
     }
 
@@ -161,7 +161,7 @@ struct AboutPane: View {
 
     private func linkCard(
         icon: String, color: Color,
-        title: String, subtitle: String
+        title: LocalizedStringKey, subtitle: String
     ) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)

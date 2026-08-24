@@ -18,12 +18,14 @@
 //  <https://www.gnu.org/licenses/>.
 //
 
+import AppKit
 import SwiftUI
 
 struct DisplaysPane: View {
     let isAdvanced: Bool
 
     @EnvironmentObject var displayManager: DisplayManager
+    @StateObject private var library = WallpaperLibrary.shared
     @AppStorage("onKnownDisplay") private var onKnown: String = "restoreProfile"
     @AppStorage("onNewDisplay") private var onNew: String = "askMe"
 
@@ -87,7 +89,15 @@ struct DisplaysPane: View {
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(.secondary)
-                Text("\(displayManager.displays.count) display\(displayManager.displays.count == 1 ? "" : "s")")
+                let count = displayManager.displays.count
+                let key = count == 1 ? "%d display" : "%d displays"
+                Text(String(
+                    format: NSLocalizedString(
+                        key,
+                        comment: "Connected display count"
+                    ),
+                    count
+                ))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
@@ -98,12 +108,19 @@ struct DisplaysPane: View {
             Card {
                 ForEach(Array(displayManager.displays.enumerated()), id: \.element.id) { index, display in
                     let settings = DisplaySettingsStore.settings(for: display.id)
+                    let wallpaper = assignedWallpaper(for: display.id)
                     DisplayRow(
                         display: display,
                         enabled: settings.enabled,
                         isPrimary: WaraqPrimaryStore.isPrimary(
                             displayID: display.id
                         ),
+                        thumbnailURL: wallpaper.map {
+                            library.displayThumbnailURL(for: $0)
+                        },
+                        hasThumbnail: wallpaper.map {
+                            library.hasAnyThumbnail(for: $0)
+                        } ?? false,
                         onToggleEnabled: { newValue in
                             displayManager.setDisplayEnabled(
                                 displayID: display.id,
@@ -121,6 +138,18 @@ struct DisplaysPane: View {
                 }
             }
         }
+    }
+
+    private func assignedWallpaper(
+        for displayID: CGDirectDisplayID
+    ) -> Wallpaper? {
+        let assignments = UserDefaults.standard.dictionary(
+            forKey: "displayWallpaperAssignments"
+        ) as? [String: String] ?? [:]
+        guard let wallpaperID = assignments[String(displayID)] else {
+            return nil
+        }
+        return library.wallpaper(forID: wallpaperID)
     }
 
     /// Persist the user's chosen Waraq Primary display, then nudge the
@@ -186,6 +215,8 @@ private struct DisplayRow: View {
     let display: DisplayManager.DisplayInfo
     let enabled: Bool
     let isPrimary: Bool
+    let thumbnailURL: URL?
+    let hasThumbnail: Bool
     let onToggleEnabled: (Bool) -> Void
     let onConfigure: () -> Void
     let onSetPrimary: () -> Void
@@ -206,18 +237,7 @@ private struct DisplayRow: View {
 
     private var rowContent: some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 3)
-                .fill(LinearGradient(
-                    colors: enabled ? [
-                        Color(red: 0.06, green: 0.10, blue: 0.22),
-                        Color(red: 0.24, green: 0.06, blue: 0.12),
-                    ] : [
-                        Color.gray.opacity(0.4),
-                        Color.gray.opacity(0.2),
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
+            preview
                 .frame(width: 48, height: 30)
                 .overlay(
                     RoundedRectangle(cornerRadius: 3)
@@ -257,7 +277,9 @@ private struct DisplayRow: View {
                 Circle()
                     .fill(enabled ? Color.green : Color.gray)
                     .frame(width: 5, height: 5)
-                Text(enabled ? "LIVE" : "OFF")
+                Text(enabled
+                    ? LocalizedStringKey("LIVE")
+                    : LocalizedStringKey("OFF"))
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(enabled ? .green : .secondary)
             }
@@ -281,5 +303,30 @@ private struct DisplayRow: View {
         }
         .padding(.vertical, 11)
         .padding(.horizontal, 14)
+    }
+
+    @ViewBuilder
+    private var preview: some View {
+        if hasThumbnail,
+           let thumbnailURL,
+           let image = NSImage(contentsOf: thumbnailURL)
+        {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFill()
+        } else {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(LinearGradient(
+                    colors: enabled ? [
+                        Color(red: 0.06, green: 0.10, blue: 0.22),
+                        Color(red: 0.24, green: 0.06, blue: 0.12),
+                    ] : [
+                        Color.gray.opacity(0.4),
+                        Color.gray.opacity(0.2),
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
+        }
     }
 }

@@ -22,9 +22,11 @@ import AppKit
 import AVFoundation
 
 final class VideoEngine: NSObject {
-    private let asset: AVAsset
+    private var asset: AVAsset
     private let player: AVPlayer
-    private let playerItem: AVPlayerItem
+    private var playerItem: AVPlayerItem
+
+    private(set) var videoURL: URL
 
     /// Container layer that's installed in the wallpaper window.
     /// Holds the player layer (and possibly a CAReplicatorLayer for
@@ -59,10 +61,12 @@ final class VideoEngine: NSObject {
     private(set) var renderScale: Float = 1
 
     private var presentationSizeObserver: NSKeyValueObservation?
+    private var endObserver: NSObjectProtocol?
 
     init(videoURL: URL, fitMode: DisplaySettings.FitMode = .fill) {
         let asset = AVURLAsset(url: videoURL)
         self.asset = asset
+        self.videoURL = videoURL
         playerItem = AVPlayerItem(asset: asset)
         player = AVPlayer(playerItem: playerItem)
         player.isMuted = true
@@ -81,20 +85,7 @@ final class VideoEngine: NSObject {
 
         applyFitMode()
 
-        // Re-apply fit when presentation size becomes known
-        // (needed for Center and Tile which depend on video size).
-        presentationSizeObserver = playerItem.observe(
-            \.presentationSize, options: [.new]
-        ) { [weak self] _, _ in
-            Task { @MainActor [weak self] in
-                self?.applyFitMode()
-            }
-        }
-
-        NotificationCenter.default.addObserver(
-            self, selector: #selector(playerDidReachEnd),
-            name: .AVPlayerItemDidPlayToEndTime, object: playerItem
-        )
+        installItemObservers()
     }
 
     func play() {
@@ -103,6 +94,49 @@ final class VideoEngine: NSObject {
 
     func pause() {
         player.pause()
+    }
+
+    /// Switches to a preprocessed variant without rebuilding the window or
+    /// AVPlayerLayer. The current playback position and play state survive
+    /// the swap so a frame-rate setting change is not visible to the user.
+    func replaceVideo(with url: URL) {
+        guard url != videoURL else { return }
+
+        let wasPlaying = player.rate != 0
+        let currentTime = player.currentTime()
+        player.pause()
+
+        presentationSizeObserver?.invalidate()
+        presentationSizeObserver = nil
+        if let endObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+            self.endObserver = nil
+        }
+
+        let newAsset = AVURLAsset(url: url)
+        let newItem = AVPlayerItem(asset: newAsset)
+        player.replaceCurrentItem(with: newItem)
+        asset = newAsset
+        playerItem = newItem
+        videoURL = url
+        renderFrameRate = nil
+        renderScale = 1
+        installItemObservers()
+        applyFitMode()
+
+        guard currentTime.isNumeric, currentTime.seconds >= 0 else {
+            if wasPlaying { player.play() }
+            return
+        }
+
+        player.seek(
+            to: currentTime,
+            toleranceBefore: .zero,
+            toleranceAfter: .zero
+        ) { [weak self] _ in
+            guard wasPlaying else { return }
+            self?.player.play()
+        }
     }
 
     /// Applies the shared performance preset without replacing the
@@ -117,14 +151,28 @@ final class VideoEngine: NSObject {
         }
         let scale = renderScale(for: quality)
 
-        guard frameRate != nil || scale < 1 else {
+        if renderFrameRate == frameRate, renderScale == scale {
+            return
+        }
+
+        guard let track = asset.tracks(withMediaType: .video).first else {
             playerItem.videoComposition = nil
             renderFrameRate = nil
             renderScale = 1
             return
         }
 
-        guard let track = asset.tracks(withMediaType: .video).first else {
+        // AVPlayer already decodes and presents the source efficiently when
+        // no cadence reduction or downscaling is needed. Creating a video
+        // composition in that case adds a CPU-side render stage for no gain.
+        let sourceFrameRate = Double(track.nominalFrameRate)
+        let needsFrameRateLimit: Bool = if let frameRate {
+            sourceFrameRate <= 0 || frameRate + 0.5 < sourceFrameRate
+        } else {
+            false
+        }
+
+        guard needsFrameRateLimit || scale < 1 else {
             playerItem.videoComposition = nil
             renderFrameRate = nil
             renderScale = 1
@@ -168,6 +216,24 @@ final class VideoEngine: NSObject {
         guard loop else { return }
         player.seek(to: .zero)
         player.play()
+    }
+
+    private func installItemObservers() {
+        presentationSizeObserver = playerItem.observe(
+            \.presentationSize, options: [.new]
+        ) { [weak self] _, _ in
+            Task { @MainActor [weak self] in
+                self?.applyFitMode()
+            }
+        }
+
+        endObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { [weak self] _ in
+            self?.playerDidReachEnd()
+        }
     }
 
     /// Rebuild the container's sublayers based on the current fit
@@ -321,6 +387,9 @@ final class VideoEngine: NSObject {
 
     deinit {
         presentationSizeObserver?.invalidate()
+        if let endObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+        }
         NotificationCenter.default.removeObserver(self)
         player.pause()
     }

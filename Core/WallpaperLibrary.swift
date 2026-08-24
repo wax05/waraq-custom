@@ -78,6 +78,7 @@ final class WallpaperLibrary: ObservableObject {
             withIntermediateDirectories: true
         )
 
+        cleanupStaleProcessedFiles()
         load()
         seedBuiltInsIfNeeded()
         generateProceduralThumbnailsIfNeeded()
@@ -138,7 +139,9 @@ final class WallpaperLibrary: ObservableObject {
         }
 
         var name = sourceURL.deletingPathExtension().lastPathComponent
-        if name.isEmpty { name = "Untitled" }
+        if name.isEmpty {
+            name = NSLocalizedString("Untitled", comment: "Imported wallpaper name")
+        }
 
         let wallpaper = Wallpaper(
             id: id, name: name, kind: kind,
@@ -302,7 +305,7 @@ final class WallpaperLibrary: ObservableObject {
             await RifeMetalPreprocessor.shared.enqueue(
                 sourceURL: sourceURL,
                 wallpaperID: wallpaper.id,
-                displayName: wallpaper.name,
+                displayName: wallpaper.localizedName,
                 outputDirectory: outputDirectory,
                 displayMaxFPS: maxFPS
             )
@@ -435,6 +438,18 @@ final class WallpaperLibrary: ObservableObject {
 
     // MARK: Internal
 
+    private func cleanupStaleProcessedFiles() {
+        guard let files = FileManager.default.enumerator(
+            at: processedDir,
+            includingPropertiesForKeys: nil
+        ) else { return }
+
+        for case let url as URL in files
+        where url.lastPathComponent.hasSuffix(".partial.mp4") {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
     private var removedProceduralKeys: Set<String> {
         Set(UserDefaults.standard.array(
             forKey: "removedProceduralKeys"
@@ -466,6 +481,13 @@ final class WallpaperLibrary: ObservableObject {
             for wallpaper in imported {
                 // Filter out deprecated .url kind (Phase 7 migration)
                 if wallpaper.kind == .url { continue }
+                // Matrix Rain was removed because its per-glyph text
+                // rendering caused excessive main-thread CPU usage.
+                if wallpaper.kind == .procedural,
+                   wallpaper.proceduralKey == "matrix-rain"
+                {
+                    continue
+                }
                 // Validate file existence for file-backed kinds
                 if wallpaper.kind == .video || wallpaper.kind == .gif
                     || wallpaper.kind == .image

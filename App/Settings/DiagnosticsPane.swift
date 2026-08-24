@@ -67,10 +67,16 @@ struct DiagnosticsPane: View {
             .padding(.horizontal, 28)
             .padding(.vertical, 24)
         }
-        .onAppear { profiles = DisplayProfileStore.allProfiles() }
+        .onAppear {
+            profiles = DisplayProfileStore.allProfiles()
+            monitor.start(interval: 1.0)
+        }
+        .onDisappear {
+            monitor.start(interval: 5.0)
+        }
     }
 
-    private func sectionHeader(_ text: String) -> some View {
+    private func sectionHeader(_ text: LocalizedStringKey) -> some View {
         Text(text)
             .font(.system(size: 11, weight: .medium))
             .tracking(0.5)
@@ -108,7 +114,9 @@ struct DiagnosticsPane: View {
                         .clipShape(RoundedRectangle(cornerRadius: 3))
                 }
                 Spacer()
-                Text(settings.enabled ? "LIVE" : "OFF")
+                Text(settings.enabled
+                    ? LocalizedStringKey("LIVE")
+                    : LocalizedStringKey("OFF"))
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
             }
@@ -129,7 +137,8 @@ struct DiagnosticsPane: View {
             )
             row(
                 "Wallpaper",
-                wallpaper?.name ?? "None"
+                wallpaper?.localizedName
+                    ?? NSLocalizedString("None", comment: "Missing value")
             )
             row(
                 "Engine",
@@ -151,15 +160,29 @@ struct DiagnosticsPane: View {
     }
 
     private func engineLabel(for wallpaper: Wallpaper?) -> String {
-        guard let w = wallpaper else { return "None" }
+        guard let w = wallpaper else {
+            return NSLocalizedString("None", comment: "Missing value")
+        }
         switch w.kind {
-        case .builtInGradient: return "Gradient"
-        case .procedural: return "Procedural · \(w.proceduralKey ?? "")"
+        case .builtInGradient:
+            return NSLocalizedString("Gradient", comment: "Wallpaper engine")
+        case .procedural:
+            return String(
+                format: NSLocalizedString(
+                    "Procedural · %@",
+                    comment: "Wallpaper engine"
+                ),
+                w.proceduralKey ?? ""
+            )
         case .video: return "Video (AVPlayer)"
-        case .gif: return "GIF (local, WebKit)"
-        case .gifURL: return "GIF (remote, WebKit)"
-        case .image: return "Image"
-        case .url: return "URL (deprecated)"
+        case .gif:
+            return NSLocalizedString("GIF (local, WebKit)", comment: "Wallpaper engine")
+        case .gifURL:
+            return NSLocalizedString("GIF (remote, WebKit)", comment: "Wallpaper engine")
+        case .image:
+            return NSLocalizedString("Image", comment: "Wallpaper engine")
+        case .url:
+            return NSLocalizedString("URL (deprecated)", comment: "Wallpaper engine")
         }
     }
 
@@ -168,7 +191,9 @@ struct DiagnosticsPane: View {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useMB, .useKB, .useGB]
         formatter.countStyle = .file
-        let sizeStr = bytes > 0 ? formatter.string(fromByteCount: bytes) : "0 bytes"
+        let sizeStr = bytes > 0
+            ? formatter.string(fromByteCount: bytes)
+            : NSLocalizedString("0 bytes", comment: "Library size")
 
         return VStack(alignment: .leading, spacing: 6) {
             row("Wallpapers", "\(library.wallpapers.count)")
@@ -241,12 +266,18 @@ struct DiagnosticsPane: View {
                 Text(profile.lastKnownName)
                     .font(.system(size: 13, weight: .medium))
                 Spacer()
-                Text(isConnected ? "CONNECTED" : "DISCONNECTED")
+                Text(isConnected
+                    ? LocalizedStringKey("CONNECTED")
+                    : LocalizedStringKey("DISCONNECTED"))
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.secondary)
             }
             row("Hardware ID", profile.formattedHardwareID)
-            row("Saved wallpaper", wallpaper?.name ?? "Missing")
+            row(
+                "Saved wallpaper",
+                wallpaper?.localizedName
+                    ?? NSLocalizedString("Missing", comment: "Missing value")
+            )
             row("Last seen", df.string(from: profile.lastSeen))
             if !isConnected {
                 HStack {
@@ -275,7 +306,10 @@ struct DiagnosticsPane: View {
         )
     }
 
-    private func row(_ label: String, _ value: String) -> some View {
+    private func row(
+        _ label: LocalizedStringKey,
+        _ value: String
+    ) -> some View {
         HStack(alignment: .top) {
             Text(label)
                 .font(.system(size: 11))

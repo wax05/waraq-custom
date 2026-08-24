@@ -72,7 +72,7 @@ struct WallpaperStep: View {
                         .padding(6)
                 }
             }
-            Text(wallpaper.name)
+            Text(wallpaper.localizedName)
                 .font(.system(size: 11, weight: .medium))
                 .lineLimit(1)
                 .padding(.horizontal, 8)
@@ -133,8 +133,6 @@ struct WallpaperStep: View {
                 Color(red: 0.10, green: 0.30, blue: 0.40),
                 Color(red: 0.30, green: 0.10, blue: 0.45),
             ]
-        case "matrix-rain":
-            [Color(red: 0.02, green: 0.18, blue: 0.05), .black]
         case "synthwave":
             [
                 Color(red: 0.85, green: 0.20, blue: 0.50),

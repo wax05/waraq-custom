@@ -126,13 +126,22 @@ struct LibraryPane: View {
         if isDir.boolValue {
             let imported = library.importFolder(at: url)
             if imported.isEmpty {
-                importError = "No video or GIF files found in that folder."
+                importError = NSLocalizedString(
+                    "No video or GIF files found in that folder.",
+                    comment: "Import error"
+                )
                 showingImportError = true
             }
         } else {
             let ext = url.pathExtension.lowercased()
             guard WallpaperLibrary.supportedAllExtensions.contains(ext) else {
-                importError = "Unsupported file type: .\(ext)"
+                importError = String(
+                    format: NSLocalizedString(
+                        "Unsupported file type: .%@",
+                        comment: "Import error"
+                    ),
+                    ext
+                )
                 showingImportError = true
                 return
             }
@@ -153,8 +162,14 @@ struct LibraryPane: View {
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowedContentTypes = [.jpeg, .png, .heic, .image]
-        panel.title = "Choose custom thumbnail"
-        panel.message = "Pick a JPG, PNG, or HEIC image. It will be resized to 480x300 maximum."
+        panel.title = NSLocalizedString(
+            "Choose custom thumbnail",
+            comment: "File panel title"
+        )
+        panel.message = NSLocalizedString(
+            "Pick a JPG, PNG, or HEIC image. It will be resized to 480x300 maximum.",
+            comment: "File panel message"
+        )
         guard panel.runModal() == .OK,
               let url = panel.url else { return }
         do {
@@ -192,7 +207,7 @@ struct LibraryPane: View {
 
             Picker("", selection: $typeFilter) {
                 ForEach(TypeFilter.allCases, id: \.self) { filter in
-                    Text(filter.rawValue).tag(filter)
+                    Text(LocalizedStringKey(filter.rawValue)).tag(filter)
                 }
             }
             .pickerStyle(.segmented)
@@ -201,7 +216,9 @@ struct LibraryPane: View {
 
             Menu {
                 ForEach(SortOrder.allCases, id: \.self) { order in
-                    Button(order.rawValue) { sortOrder = order }
+                    Button(LocalizedStringKey(order.rawValue)) {
+                        sortOrder = order
+                    }
                 }
             } label: {
                 HStack(spacing: 4) {
@@ -244,8 +261,18 @@ struct LibraryPane: View {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useMB, .useKB, .useGB]
         formatter.countStyle = .file
-        let sizeString = bytes > 0 ? formatter.string(fromByteCount: bytes) : "0 bytes"
-        return Text("\(count) wallpaper\(count == 1 ? "" : "s") · \(sizeString)")
+        let sizeString = bytes > 0
+            ? formatter.string(fromByteCount: bytes)
+            : NSLocalizedString("0 bytes", comment: "Library size")
+        let key = count == 1
+            ? "%d wallpaper · %@"
+            : "%d wallpapers · %@"
+        let summary = String(
+            format: NSLocalizedString(key, comment: "Library summary"),
+            count,
+            sizeString
+        )
+        return Text(summary)
             .font(.system(size: 11))
             .foregroundStyle(.secondary)
             .padding(.bottom, 12)
@@ -262,6 +289,28 @@ struct LibraryPane: View {
                         .foregroundStyle(.secondary)
                         .tracking(0.4)
                     Spacer()
+                    if interpolationQueue.jobs.contains(where: { !$0.isFinished }) {
+                        Button {
+                            interpolationQueue.setPaused(
+                                !interpolationQueue.isPaused
+                            )
+                        } label: {
+                            Label(
+                                interpolationQueue.isPaused
+                                    ? NSLocalizedString(
+                                        "Resume", comment: "Queue action"
+                                    )
+                                    : NSLocalizedString(
+                                        "Pause", comment: "Queue action"
+                                    ),
+                                systemImage: interpolationQueue.isPaused
+                                    ? "play.fill"
+                                    : "pause.fill"
+                            )
+                        }
+                        .buttonStyle(.borderless)
+                        .font(.system(size: 11))
+                    }
                     if interpolationQueue.jobs.contains(where: { $0.isFinished }) {
                         Button("Clear") {
                             interpolationQueue.clearFinished()
@@ -391,8 +440,14 @@ struct LibraryPane: View {
             UTType(filenameExtension: "m4v")!,
             UTType(filenameExtension: "gif")!,
         ]
-        panel.title = "Import wallpapers"
-        panel.message = "Select MP4, MOV, M4V, or GIF files"
+        panel.title = NSLocalizedString(
+            "Import wallpapers",
+            comment: "File panel title"
+        )
+        panel.message = NSLocalizedString(
+            "Select MP4, MOV, M4V, or GIF files",
+            comment: "File panel message"
+        )
         guard panel.runModal() == .OK else { return }
         for url in panel.urls {
             do { _ = try library.importFile(at: url) }
@@ -411,13 +466,22 @@ struct LibraryPane: View {
         panel.allowsMultipleSelection = false
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
-        panel.title = "Import from folder"
-        panel.message = "Select a folder. All MP4, MOV, M4V, and GIF files inside will be imported."
+        panel.title = NSLocalizedString(
+            "Import from folder",
+            comment: "File panel title"
+        )
+        panel.message = NSLocalizedString(
+            "Select a folder. All MP4, MOV, M4V, and GIF files inside will be imported.",
+            comment: "File panel message"
+        )
         guard panel.runModal() == .OK,
               let folderURL = panel.url else { return }
         let imported = library.importFolder(at: folderURL)
         if imported.isEmpty {
-            importError = "No video or GIF files found in that folder."
+            importError = NSLocalizedString(
+                "No video or GIF files found in that folder.",
+                comment: "Import error"
+            )
             showingImportError = true
         }
     }
@@ -427,8 +491,14 @@ struct LibraryPane: View {
         panel.allowsMultipleSelection = false
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
-        panel.title = "Import Wallpaper Engine wallpaper"
-        panel.message = "Select a .we file from your Wallpaper Engine library."
+        panel.title = NSLocalizedString(
+            "Import Wallpaper Engine wallpaper",
+            comment: "File panel title"
+        )
+        panel.message = NSLocalizedString(
+            "Select a .we file from your Wallpaper Engine library.",
+            comment: "File panel message"
+        )
         if let weType = UTType(filenameExtension: "we") {
             panel.allowedContentTypes = [weType]
         }
@@ -534,8 +604,6 @@ private struct WallpaperCard: View {
                 Color(red: 0.10, green: 0.30, blue: 0.40),
                 Color(red: 0.30, green: 0.10, blue: 0.45),
             ]
-        case "matrix-rain":
-            [Color(red: 0.02, green: 0.18, blue: 0.05), .black]
         case "synthwave":
             [
                 Color(red: 0.85, green: 0.20, blue: 0.50),
@@ -560,7 +628,7 @@ private struct WallpaperCard: View {
         HStack(spacing: 4) {
             Image(systemName: typeIcon)
                 .font(.system(size: 9))
-            Text(typeLabel)
+            Text(LocalizedStringKey(typeLabel))
                 .font(.system(size: 9, weight: .medium))
         }
         .foregroundStyle(.white)
@@ -597,7 +665,7 @@ private struct WallpaperCard: View {
 
     private var footer: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(wallpaper.name)
+            Text(wallpaper.localizedName)
                 .font(.system(size: 12, weight: .medium))
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -613,13 +681,30 @@ private struct WallpaperCard: View {
 
     private var metaLine: String {
         switch wallpaper.kind {
-        case .builtInGradient: "Lightweight · Cannot be removed"
-        case .procedural: "Procedural · Zero MB"
-        case .video: wallpaper.fileSizeString ?? "Video"
-        case .gif: wallpaper.fileSizeString ?? "GIF"
-        case .gifURL: wallpaper.urlHost ?? "Remote GIF"
-        case .url: wallpaper.urlHost ?? "Deprecated URL"
-        case .image: wallpaper.fileSizeString ?? "Still image"
+        case .builtInGradient:
+            NSLocalizedString(
+                "Lightweight · Cannot be removed",
+                comment: "Wallpaper metadata"
+            )
+        case .procedural:
+            NSLocalizedString(
+                "Procedural · Zero MB",
+                comment: "Wallpaper metadata"
+            )
+        case .video:
+            wallpaper.fileSizeString
+                ?? NSLocalizedString("Video", comment: "Wallpaper type")
+        case .gif:
+            wallpaper.fileSizeString ?? "GIF"
+        case .gifURL:
+            wallpaper.urlHost
+                ?? NSLocalizedString("Remote GIF", comment: "Wallpaper type")
+        case .url:
+            wallpaper.urlHost
+                ?? NSLocalizedString("Deprecated URL", comment: "Wallpaper type")
+        case .image:
+            wallpaper.fileSizeString
+                ?? NSLocalizedString("Still image", comment: "Wallpaper type")
         }
     }
 }
@@ -662,10 +747,10 @@ private struct FrameInterpolationQueueRow: View {
 
     private var statusLabel: String {
         switch job.status {
-        case .queued: "Queued"
-        case .processing: "Processing"
-        case .completed: "Completed"
-        case .failed: "Failed"
+        case .queued: NSLocalizedString("Queued", comment: "Queue status")
+        case .processing: NSLocalizedString("Processing", comment: "Queue status")
+        case .completed: NSLocalizedString("Completed", comment: "Queue status")
+        case .failed: NSLocalizedString("Failed", comment: "Queue status")
         }
     }
 
@@ -691,19 +776,49 @@ private struct FrameInterpolationQueueRow: View {
         switch job.status {
         case .queued:
             if job.targetFrameRates.isEmpty {
-                return "Preparing frame-rate plan..."
+                return NSLocalizedString(
+                    "Preparing frame-rate plan...",
+                    comment: "Queue detail"
+                )
             }
-            return "\(job.targetFrameRates.count) target rates queued"
+            return String(
+                format: NSLocalizedString(
+                    "%d target rates queued",
+                    comment: "Queue detail"
+                ),
+                job.targetFrameRates.count
+            )
         case .processing:
-            let frameRate = job.currentFrameRate.map { "\($0) FPS" }
-                ?? "Preparing"
+            let frameRate = job.currentFrameRate.map {
+                String(
+                    format: NSLocalizedString("%d FPS", comment: "Frame rate"),
+                    $0
+                )
+            } ?? NSLocalizedString("Preparing", comment: "Queue detail")
             let completed = job.completedFrameRates.count
             let total = job.targetFrameRates.count
-            return "\(frameRate) · \(completed)/\(total) variants"
+            return String(
+                format: NSLocalizedString(
+                    "%@ · %d/%d variants",
+                    comment: "Queue detail"
+                ),
+                frameRate,
+                completed,
+                total
+            )
         case .completed:
-            return "\(job.completedFrameRates.count) variants ready"
+            return String(
+                format: NSLocalizedString(
+                    "%d variants ready",
+                    comment: "Queue detail"
+                ),
+                job.completedFrameRates.count
+            )
         case .failed:
-            return job.errorMessage ?? "Frame interpolation failed"
+            return job.errorMessage ?? NSLocalizedString(
+                "Frame interpolation failed",
+                comment: "Queue detail"
+            )
         }
     }
 }

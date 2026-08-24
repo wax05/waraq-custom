@@ -35,9 +35,21 @@ struct GalleryDownloader {
         var errorDescription: String? {
             switch self {
             case let .downloadFailed(code):
-                "Download failed (HTTP \(code))."
+                String(
+                    format: NSLocalizedString(
+                        "Download failed (HTTP %d).",
+                        comment: "Gallery download error"
+                    ),
+                    code
+                )
             case let .importFailed(error):
-                "Library import failed: \(error.localizedDescription)"
+                String(
+                    format: NSLocalizedString(
+                        "Library import failed: %@",
+                        comment: "Gallery download error"
+                    ),
+                    error.localizedDescription
+                )
             }
         }
     }

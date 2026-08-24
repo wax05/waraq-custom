@@ -29,11 +29,20 @@ enum ProceduralThumbnailError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noProceduralViewForKind:
-            "No procedural view exists for this wallpaper."
+            NSLocalizedString(
+                "No procedural view exists for this wallpaper.",
+                comment: "Thumbnail error"
+            )
         case .renderingFailed:
-            "ImageRenderer produced no image."
+            NSLocalizedString(
+                "ImageRenderer produced no image.",
+                comment: "Thumbnail error"
+            )
         case .encodingFailed:
-            "Could not encode the procedural thumbnail as JPG."
+            NSLocalizedString(
+                "Could not encode the procedural thumbnail as JPG.",
+                comment: "Thumbnail error"
+            )
         }
     }
 }

@@ -92,7 +92,13 @@ final class GalleryViewModel: ObservableObject {
         )
         guard !query.isEmpty else { return }
         guard selectedSource.isImplemented else {
-            error = "\(selectedSource.displayName) is coming soon."
+            error = String(
+                format: NSLocalizedString(
+                    "%@ is coming soon.",
+                    comment: "Gallery availability error"
+                ),
+                selectedSource.displayName
+            )
             return
         }
         guard hasAPIKey else { return }

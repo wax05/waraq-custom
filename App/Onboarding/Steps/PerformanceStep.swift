@@ -62,7 +62,9 @@ struct PerformanceStep: View {
     }
 
     private func toggleRow(
-        title: String, subtitle: String, isOn: Binding<Bool>
+        title: LocalizedStringKey,
+        subtitle: LocalizedStringKey,
+        isOn: Binding<Bool>
     ) -> some View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 2) {

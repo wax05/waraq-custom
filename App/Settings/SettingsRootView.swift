@@ -94,7 +94,7 @@ enum PaneID: String, CaseIterable, Identifiable {
         rawValue
     }
 
-    var label: String {
+    var label: LocalizedStringKey {
         switch self {
         case .general: "General"
         case .displays: "Displays"

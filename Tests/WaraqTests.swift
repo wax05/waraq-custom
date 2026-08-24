@@ -58,6 +58,8 @@ final class WaraqTests: XCTestCase {
         XCTAssertFalse(window.canBecomeKey)
         XCTAssertFalse(window.canBecomeMain)
         XCTAssertFalse(window.hasShadow)
+        XCTAssertEqual(window.contentView?.frame.origin, .zero)
+        XCTAssertEqual(window.contentView?.frame.size, screen.frame.size)
         XCTAssertTrue(
             window.collectionBehavior.contains(.canJoinAllSpaces)
         )
@@ -98,6 +100,14 @@ final class WaraqTests: XCTestCase {
         let url = URL(fileURLWithPath: "/tmp/does-not-exist.mp4")
         let engine = VideoEngine(videoURL: url)
         XCTAssertNotNil(engine.layer)
+    }
+
+    func testVideoEngineCanReplaceSource() {
+        let first = URL(fileURLWithPath: "/tmp/first-video.mp4")
+        let second = URL(fileURLWithPath: "/tmp/second-video.mp4")
+        let engine = VideoEngine(videoURL: first)
+        engine.replaceVideo(with: second)
+        XCTAssertEqual(engine.videoURL, second)
     }
 
     func testVideoEngineTileModeSurvivesZeroBounds() {
@@ -215,8 +225,41 @@ final class WaraqTests: XCTestCase {
             "Serious",
             "Critical",
             "Unknown",
-        ]
+        ].map { NSLocalizedString($0, comment: "Thermal state") }
         XCTAssertTrue(validLabels.contains(gov.thermalStateLabel))
+    }
+
+    func testSupportedLocalizationsAreBundled() throws {
+        let bundle = Bundle.main
+        for language in ["en", "ko", "ja"] {
+            XCTAssertNotNil(
+                bundle.path(forResource: language, ofType: "lproj"),
+                "Missing \(language) localization"
+            )
+        }
+
+        let koreanPath = try XCTUnwrap(
+            bundle.path(forResource: "ko", ofType: "lproj")
+        )
+        let japanesePath = try XCTUnwrap(
+            bundle.path(forResource: "ja", ofType: "lproj")
+        )
+        XCTAssertEqual(
+            Bundle(path: koreanPath)?.localizedString(
+                forKey: "General",
+                value: nil,
+                table: nil
+            ),
+            "일반"
+        )
+        XCTAssertEqual(
+            Bundle(path: japanesePath)?.localizedString(
+                forKey: "General",
+                value: nil,
+                table: nil
+            ),
+            "一般"
+        )
     }
 
     @MainActor
@@ -268,13 +311,67 @@ final class WaraqTests: XCTestCase {
         )
     }
 
-    func testRifeMetalFrameRatePlanUsesRequestedOrderAndTenFPSSteps() {
+    @MainActor
+    func testProceduralFrameRateHonorsImplementationCaps() {
+        let displayID = NSScreen.main?.deviceDescription[
+            NSDeviceDescriptionKey("NSScreenNumber")
+        ] as? CGDirectDisplayID ?? 0
+        let defaults = UserDefaults.standard
+        let capFrameRate = defaults.object(forKey: "capFrameRate")
+        let displayCaps = defaults.object(forKey: "displayFrameRateCaps")
+        defer {
+            if let capFrameRate {
+                defaults.set(capFrameRate, forKey: "capFrameRate")
+            } else {
+                defaults.removeObject(forKey: "capFrameRate")
+            }
+            if let displayCaps {
+                defaults.set(displayCaps, forKey: "displayFrameRateCaps")
+            } else {
+                defaults.removeObject(forKey: "displayFrameRateCaps")
+            }
+        }
+
+        defaults.set(true, forKey: "capFrameRate")
+        PerformanceRenderSettings.setDisplayFrameRateCap(
+            120,
+            for: displayID
+        )
+        XCTAssertEqual(
+            PerformanceRenderSettings.proceduralFrameRate(
+                for: displayID, key: "aurora"
+            ),
+            30
+        )
+        XCTAssertEqual(
+            PerformanceRenderSettings.proceduralFrameRate(
+                for: displayID, key: "starfield"
+            ),
+            60
+        )
+    }
+
+    func testRifeMetalFrameRatePlanUsesOriginal30FPS60FPSAndMaximum() {
         XCTAssertEqual(
             RifeMetalPreprocessor.targetFrameRates(
                 sourceFPS: 24,
                 displayMaxFPS: 120
             ),
-            [60, 70, 90, 120, 30, 40, 50, 80, 100, 110]
+            [30, 60, 120]
+        )
+        XCTAssertEqual(
+            RifeMetalPreprocessor.targetFrameRates(
+                sourceFPS: 30,
+                displayMaxFPS: 120
+            ),
+            [60, 120]
+        )
+        XCTAssertEqual(
+            RifeMetalPreprocessor.targetFrameRates(
+                sourceFPS: 60,
+                displayMaxFPS: 60
+            ),
+            []
         )
         XCTAssertEqual(
             PerformanceRenderSettings.normalizedFrameRate(73),
@@ -312,6 +409,18 @@ final class WaraqTests: XCTestCase {
         XCTAssertEqual(queue.jobs.first?.progress, 1)
         queue.clearFinished()
         XCTAssertTrue(queue.jobs.isEmpty)
+    }
+
+    @MainActor
+    func testRifeInterpolationQueueCanPauseAndResume() {
+        let queue = RifeInterpolationQueue()
+        XCTAssertFalse(queue.isPaused)
+
+        queue.setPaused(true)
+        XCTAssertTrue(queue.isPaused)
+
+        queue.setPaused(false)
+        XCTAssertFalse(queue.isPaused)
     }
 
     @MainActor
@@ -397,8 +506,8 @@ final class WaraqTests: XCTestCase {
         }
         XCTAssertEqual(
             procedural.count,
-            5,
-            "Should seed 5 procedural built-ins"
+            4,
+            "Should seed 4 procedural built-ins"
         )
     }
 

@@ -159,7 +159,7 @@ struct GeneralPane: View {
         .padding(.bottom, 8)
     }
 
-    private func sectionHeader(_ title: String) -> some View {
+    private func sectionHeader(_ title: LocalizedStringKey) -> some View {
         Text(title)
             .font(.system(size: 11, weight: .medium))
             .tracking(0.5)

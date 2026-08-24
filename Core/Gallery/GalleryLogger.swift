@@ -44,9 +44,22 @@ enum GalleryErrorText {
     }
 
     static func http(_ source: String, code: Int, raw: String?) -> String {
-        var msg = "\(source) returned HTTP \(code)."
+        var msg = String(
+            format: NSLocalizedString(
+                "%@ returned HTTP %d.",
+                comment: "Gallery HTTP error"
+            ),
+            source,
+            code
+        )
         if let raw, !raw.isEmpty {
-            msg += "\n\nRaw response (first 500 chars):\n\(raw)"
+            msg += String(
+                format: NSLocalizedString(
+                    "\n\nRaw response (first 500 chars):\n%@",
+                    comment: "Gallery raw error response"
+                ),
+                raw
+            )
         }
         return msg
     }
@@ -54,10 +67,22 @@ enum GalleryErrorText {
     static func decoding(
         _ source: String, error: Error, raw: String?
     ) -> String {
-        var msg = "\(source) response decoding failed: "
-            + error.localizedDescription
+        var msg = String(
+            format: NSLocalizedString(
+                "%@ response decoding failed: %@",
+                comment: "Gallery decoding error"
+            ),
+            source,
+            error.localizedDescription
+        )
         if let raw, !raw.isEmpty {
-            msg += "\n\nRaw response (first 500 chars):\n\(raw)"
+            msg += String(
+                format: NSLocalizedString(
+                    "\n\nRaw response (first 500 chars):\n%@",
+                    comment: "Gallery raw error response"
+                ),
+                raw
+            )
         }
         return msg
     }

@@ -39,6 +39,10 @@ targets:
       properties:
         LSUIElement: true
         CFBundleDisplayName: Waraq
+        CFBundleLocalizations:
+          - en
+          - ko
+          - ja
         CFBundleShortVersionString: "1.1.0"
         CFBundleVersion: "4"
         WaraqReleaseNotes: "프레임 생성 기술 추가"

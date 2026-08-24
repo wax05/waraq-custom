@@ -97,6 +97,13 @@ struct Wallpaper: Codable, Identifiable, Hashable {
               let host = url.host else { return nil }
         return host.replacingOccurrences(of: "www.", with: "")
     }
+
+    var localizedName: String {
+        guard kind == .builtInGradient || kind == .procedural else {
+            return name
+        }
+        return NSLocalizedString(name, comment: "Built-in wallpaper name")
+    }
 }
 
 enum WallpaperImportError: LocalizedError {
@@ -108,13 +115,28 @@ enum WallpaperImportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case let .unsupportedFormat(ext):
-            "Unsupported file format: .\(ext). Try MP4, MOV, or M4V."
+            String(
+                format: NSLocalizedString(
+                    "Unsupported file format: .%@. Try MP4, MOV, or M4V.",
+                    comment: "Import error"
+                ),
+                ext
+            )
         case let .copyFailed(underlying):
-            "Could not copy file to library: \(underlying.localizedDescription)"
+            String(
+                format: NSLocalizedString(
+                    "Could not copy file to library: %@",
+                    comment: "Import error"
+                ),
+                underlying.localizedDescription
+            )
         case .libraryUnavailable:
-            "Library directory is not available."
+            NSLocalizedString("Library directory is not available.", comment: "Import error")
         case let .invalidURL(str):
-            "Not a valid URL: \(str)"
+            String(
+                format: NSLocalizedString("Not a valid URL: %@", comment: "Import error"),
+                str
+            )
         }
     }
 }

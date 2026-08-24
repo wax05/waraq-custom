@@ -31,15 +31,18 @@ enum PexelsError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            "Pexels API key is missing."
+            NSLocalizedString("Pexels API key is missing.", comment: "Gallery error")
         case .invalidResponse:
-            "Pexels returned an invalid response."
+            NSLocalizedString("Pexels returned an invalid response.", comment: "Gallery error")
         case let .httpError(code, raw):
             GalleryErrorText.http("Pexels", code: code, raw: raw)
         case let .decoding(error, raw):
             GalleryErrorText.decoding("Pexels", error: error, raw: raw)
         case .noPlayableFile:
-            "Pexels returned a video with no MP4 file."
+            NSLocalizedString(
+                "Pexels returned a video with no MP4 file.",
+                comment: "Gallery error"
+            )
         }
     }
 }

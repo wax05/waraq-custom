@@ -52,6 +52,7 @@ final class RifeInterpolationQueue: ObservableObject {
     }
 
     @Published private(set) var jobs: [Job] = []
+    @Published private(set) var isPaused = false
 
     func enqueue(
         id: String,
@@ -135,6 +136,14 @@ final class RifeInterpolationQueue: ObservableObject {
         jobs.removeAll { $0.isFinished }
     }
 
+    func setPaused(_ paused: Bool) {
+        guard isPaused != paused else { return }
+        isPaused = paused
+        Task {
+            await RifeMetalPreprocessor.shared.setPaused(paused)
+        }
+    }
+
     private func clamped(_ value: Double) -> Double {
         min(max(value, 0), 1)
     }
@@ -153,6 +162,16 @@ actor RifeMetalPreprocessor {
     )
 
     private var jobs: [String: Task<Void, Never>] = [:]
+    private var isPaused = false
+    private var pauseWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func setPaused(_ paused: Bool) {
+        isPaused = paused
+        guard !paused else { return }
+        let waiters = pauseWaiters
+        pauseWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+    }
 
     func enqueue(
         sourceURL: URL,
@@ -181,11 +200,14 @@ actor RifeMetalPreprocessor {
 
         let job = Task.detached(priority: .utility) { [weak self] in
             do {
-                try Self.process(
+                try await Self.process(
                     sourceURL: sourceURL,
                     wallpaperID: wallpaperID,
                     outputDirectory: outputDirectory,
-                    displayMaxFPS: displayMaxFPS
+                    displayMaxFPS: displayMaxFPS,
+                    waitUntilResumed: { [weak self] in
+                        await self?.waitUntilResumed()
+                    }
                 )
                 Task { @MainActor in
                     RifeInterpolationQueue.shared.complete(id: wallpaperID)
@@ -218,12 +240,9 @@ actor RifeMetalPreprocessor {
             result.append(fps)
         }
 
-        // Keep the requested high-rate order first, then fill the 10 fps
-        // ladder. Duplicate values are removed while preserving that order.
-        [60, 70, 90, 120, maximum].forEach(append)
-        if maximum >= 40 {
-            stride(from: 30, through: maximum - 10, by: 10).forEach(append)
-        }
+        // The original file is always available as the fallback. Generate
+        // only the useful interpolation variants on top of it.
+        [30, 60, maximum].forEach(append)
         return result
     }
 
@@ -231,12 +250,24 @@ actor RifeMetalPreprocessor {
         jobs[wallpaperID] = nil
     }
 
+    private func waitUntilResumed() async {
+        guard isPaused else { return }
+        await withCheckedContinuation { continuation in
+            if isPaused {
+                pauseWaiters.append(continuation)
+            } else {
+                continuation.resume()
+            }
+        }
+    }
+
     private static func process(
         sourceURL: URL,
         wallpaperID: String,
         outputDirectory: URL,
-        displayMaxFPS: Int
-    ) throws {
+        displayMaxFPS: Int,
+        waitUntilResumed: @escaping @Sendable () async -> Void
+    ) async throws {
         let asset = AVURLAsset(url: sourceURL)
         guard let track = asset.tracks(withMediaType: .video).first else {
             throw ProcessingError.missingVideo
@@ -259,6 +290,7 @@ actor RifeMetalPreprocessor {
         )
 
         for (index, fps) in targets.enumerated() {
+            await waitUntilResumed()
             let finalURL = outputDirectory
                 .appendingPathComponent("\(fps)fps.mp4")
             let temporaryURL = outputDirectory
@@ -348,9 +380,15 @@ actor RifeMetalPreprocessor {
                 AVVideoWidthKey: width,
                 AVVideoHeightKey: height,
                 AVVideoCompressionPropertiesKey: [
+                    // Keep generated storage proportional to both pixels
+                    // and output cadence instead of using the same large
+                    // bitrate for every Rife variant.
                     AVVideoAverageBitRateKey: max(
-                        8_000_000,
-                        min(width * height * 4, 60_000_000)
+                        4_000_000,
+                        min(
+                            Int(Double(width * height) * Double(fps) * 0.08),
+                            40_000_000
+                        )
                     ),
                     AVVideoAllowFrameReorderingKey: false,
                 ],
@@ -584,11 +622,32 @@ actor RifeMetalPreprocessor {
         var errorDescription: String? {
             switch self {
             case .missingVideo:
-                return "No decodable video frames were found."
+                return NSLocalizedString(
+                    "No decodable video frames were found.",
+                    comment: "Frame interpolation error"
+                )
             case let .reader(error):
-                return "AVAssetReader failed: \(error?.localizedDescription ?? "unknown error")"
+                return String(
+                    format: NSLocalizedString(
+                        "AVAssetReader failed: %@",
+                        comment: "Frame interpolation error"
+                    ),
+                    error?.localizedDescription ?? NSLocalizedString(
+                        "unknown error",
+                        comment: "Unknown error"
+                    )
+                )
             case let .writer(error):
-                return "AVAssetWriter failed: \(error?.localizedDescription ?? "unknown error")"
+                return String(
+                    format: NSLocalizedString(
+                        "AVAssetWriter failed: %@",
+                        comment: "Frame interpolation error"
+                    ),
+                    error?.localizedDescription ?? NSLocalizedString(
+                        "unknown error",
+                        comment: "Unknown error"
+                    )
+                )
             }
         }
     }

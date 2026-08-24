@@ -79,3 +79,7 @@ Waraq.xcodeproj/
 
 # MediaFile
 *.mp4
+
+# DevelopEtc
+docs
+etc

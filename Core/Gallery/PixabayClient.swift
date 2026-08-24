@@ -29,13 +29,25 @@ enum PixabayError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingAPIKey:
-            "Pixabay API key is missing."
+            NSLocalizedString("Pixabay API key is missing.", comment: "Gallery error")
         case .invalidResponse:
-            "Pixabay returned an invalid response."
+            NSLocalizedString("Pixabay returned an invalid response.", comment: "Gallery error")
         case let .httpError(code):
-            "Pixabay returned HTTP \(code)."
+            String(
+                format: NSLocalizedString(
+                    "Pixabay returned HTTP %d.",
+                    comment: "Gallery error"
+                ),
+                code
+            )
         case let .decoding(error):
-            "Pixabay response decoding failed: \(error.localizedDescription)"
+            String(
+                format: NSLocalizedString(
+                    "Pixabay response decoding failed: %@",
+                    comment: "Gallery error"
+                ),
+                error.localizedDescription
+            )
         }
     }
 }

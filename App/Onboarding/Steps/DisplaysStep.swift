@@ -101,7 +101,10 @@ private struct DisplayToggleRow: View {
     }
 }
 
-func stepHeader(title: String, subtitle: String) -> some View {
+func stepHeader(
+    title: LocalizedStringKey,
+    subtitle: LocalizedStringKey
+) -> some View {
     VStack(alignment: .leading, spacing: 4) {
         Text(title)
             .font(.system(size: 22, weight: .medium))

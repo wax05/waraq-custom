@@ -34,8 +34,6 @@ enum ProceduralFactory {
         let frameRate = frameRate ?? defaultFrameRate(for: key)
         switch key {
         case "aurora": return AnyView(AuroraView(frameRate: frameRate))
-        case "matrix-rain":
-            return AnyView(MatrixRainView(frameRate: frameRate))
         case "synthwave":
             return AnyView(SynthwaveView(frameRate: frameRate))
         case "starfield":
@@ -67,13 +65,6 @@ enum ProceduralFactory {
             kind: .procedural,
             addedDate: Date.distantPast,
             proceduralKey: "aurora"
-        ),
-        Wallpaper(
-            id: "com.bahamut.waraq.builtin.matrix",
-            name: "Matrix Rain",
-            kind: .procedural,
-            addedDate: Date.distantPast,
-            proceduralKey: "matrix-rain"
         ),
         Wallpaper(
             id: "com.bahamut.waraq.builtin.synthwave",

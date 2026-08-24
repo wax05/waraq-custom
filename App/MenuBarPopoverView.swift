@@ -18,12 +18,14 @@
 //  <https://www.gnu.org/licenses/>.
 //
 
+import AppKit
 import SwiftUI
 
 /// Menu bar dropdown SwiftUI view. Simplified Phase 2 version of
 /// docs/design/menubar.md.
 struct MenuBarPopoverView: View {
     @ObservedObject var displayManager: DisplayManager
+    @ObservedObject private var wallpaperLibrary = WallpaperLibrary.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -41,18 +43,15 @@ struct MenuBarPopoverView: View {
         .background(.regularMaterial)
     }
 
-    // Preview hero: placeholder gradient (live capture is Phase 4)
-
     private var previewHero: some View {
         ZStack(alignment: .topTrailing) {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.06, green: 0.10, blue: 0.22),
-                    Color(red: 0.24, green: 0.06, blue: 0.12),
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            Group {
+                if let display = previewDisplay {
+                    wallpaperPreview(for: display.id)
+                } else {
+                    Color.clear
+                }
+            }
             .aspectRatio(16.0 / 10.0, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .padding(.horizontal, 8)
@@ -62,7 +61,9 @@ struct MenuBarPopoverView: View {
                     .fill(displayManager.isPaused
                         ? Color.orange : Color.green)
                     .frame(width: 5, height: 5)
-                Text(displayManager.isPaused ? "Paused" : "Live")
+                Text(displayManager.isPaused
+                    ? LocalizedStringKey("Paused")
+                    : LocalizedStringKey("Live"))
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.white)
             }
@@ -91,11 +92,22 @@ struct MenuBarPopoverView: View {
 
     private var statusLine: String {
         let count = displayManager.displays.count
-        let suffix = count == 1 ? "display" : "displays"
         if displayManager.isPaused {
-            return "Paused on \(count) \(suffix)"
+            let key = count == 1
+                ? "Paused on %d display"
+                : "Paused on %d displays"
+            return String(
+                format: NSLocalizedString(key, comment: "Menu bar status"),
+                count
+            )
         }
-        return "Playing on \(count) \(suffix)"
+        let key = count == 1
+            ? "Playing on %d display"
+            : "Playing on %d displays"
+        return String(
+            format: NSLocalizedString(key, comment: "Menu bar status"),
+            count
+        )
     }
 
     // Quick actions row
@@ -121,7 +133,7 @@ struct MenuBarPopoverView: View {
 
     private func quickButton(
         icon: String,
-        label: String,
+        label: LocalizedStringKey,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -169,16 +181,9 @@ struct MenuBarPopoverView: View {
         _ display: DisplayManager.DisplayInfo
     ) -> some View {
         HStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 3)
-                .fill(LinearGradient(
-                    colors: [
-                        Color(red: 0.06, green: 0.10, blue: 0.22),
-                        Color(red: 0.24, green: 0.06, blue: 0.12),
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
+            wallpaperPreview(for: display.id)
                 .frame(width: 38, height: 24)
+                .clipShape(RoundedRectangle(cornerRadius: 3))
                 .overlay(
                     RoundedRectangle(cornerRadius: 3)
                         .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
@@ -216,6 +221,57 @@ struct MenuBarPopoverView: View {
         .padding(.vertical, 6)
         .background(Color.clear)
         .contentShape(Rectangle())
+    }
+
+    private var previewDisplay: DisplayManager.DisplayInfo? {
+        displayManager.displays.first {
+            $0.isMain && displayManager.currentWallpaper(for: $0.id) != nil
+        } ?? displayManager.displays.first {
+            displayManager.currentWallpaper(for: $0.id) != nil
+        }
+    }
+
+    @ViewBuilder
+    private func wallpaperPreview(
+        for displayID: CGDirectDisplayID
+    ) -> some View {
+        if let wallpaper = displayManager.currentWallpaper(for: displayID) {
+            if let image = previewImage(for: wallpaper) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else if wallpaper.kind == .builtInGradient {
+                builtInGradientPreview
+            } else {
+                Color.clear
+            }
+        } else {
+            Color.clear
+        }
+    }
+
+    private func previewImage(for wallpaper: Wallpaper) -> NSImage? {
+        let url: URL?
+        if wallpaperLibrary.hasAnyThumbnail(for: wallpaper) {
+            url = wallpaperLibrary.displayThumbnailURL(for: wallpaper)
+        } else if wallpaper.kind == .image {
+            url = wallpaperLibrary.fileURL(for: wallpaper)
+        } else {
+            url = nil
+        }
+        guard let url else { return nil }
+        return NSImage(contentsOf: url)
+    }
+
+    private var builtInGradientPreview: some View {
+        LinearGradient(
+            colors: [
+                Color(red: 0.06, green: 0.10, blue: 0.22),
+                Color(red: 0.24, green: 0.06, blue: 0.12),
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 
     // Footer

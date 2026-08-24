@@ -41,7 +41,8 @@ final class WallpaperWindow: NSWindow {
         hasShadow = false
         isReleasedWhenClosed = false
 
-        let contentView = NSView(frame: screen.frame)
+        let contentView = NSView(frame: .zero)
+        contentView.autoresizingMask = [.width, .height]
         contentView.wantsLayer = true
         contentView.layer?.backgroundColor = NSColor.black.cgColor
         self.contentView = contentView

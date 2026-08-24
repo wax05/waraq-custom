@@ -37,21 +37,21 @@ struct DisplaySettings: Codable, Equatable {
 
         var label: String {
             switch self {
-            case .fill: "Fill Screen"
-            case .fit: "Fit to Screen"
-            case .stretch: "Stretch to Fill Screen"
-            case .center: "Center"
-            case .tile: "Tile"
+            case .fill: NSLocalizedString("Fill Screen", comment: "Fit mode")
+            case .fit: NSLocalizedString("Fit to Screen", comment: "Fit mode")
+            case .stretch: NSLocalizedString("Stretch to Fill Screen", comment: "Fit mode")
+            case .center: NSLocalizedString("Center", comment: "Fit mode")
+            case .tile: NSLocalizedString("Tile", comment: "Fit mode")
             }
         }
 
         var description: String {
             switch self {
-            case .fill: "Crop edges to fill the display"
-            case .fit: "Show entire video, may letterbox"
-            case .stretch: "Stretch to fill exactly, may distort"
-            case .center: "Natural pixel size, centered"
-            case .tile: "Repeat in a grid across the display"
+            case .fill: NSLocalizedString("Crop edges to fill the display", comment: "Fit mode description")
+            case .fit: NSLocalizedString("Show entire video, may letterbox", comment: "Fit mode description")
+            case .stretch: NSLocalizedString("Stretch to fill exactly, may distort", comment: "Fit mode description")
+            case .center: NSLocalizedString("Natural pixel size, centered", comment: "Fit mode description")
+            case .tile: NSLocalizedString("Repeat in a grid across the display", comment: "Fit mode description")
             }
         }
     }

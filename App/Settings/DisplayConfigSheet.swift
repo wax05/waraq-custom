@@ -84,10 +84,13 @@ struct DisplayConfigSheet: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        let mainSuffix = display.isMain
+            ? NSLocalizedString(" · Main display", comment: "Display metadata")
+            : ""
+        return VStack(alignment: .leading, spacing: 4) {
             Text("Configure \(display.name)")
                 .font(.system(size: 15, weight: .medium))
-            Text("\(display.width) x \(display.height)\(display.isMain ? " · Main display" : "")")
+            Text("\(display.width) x \(display.height)\(mainSuffix)")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
@@ -96,7 +99,7 @@ struct DisplayConfigSheet: View {
         .padding(.vertical, 16)
     }
 
-    private func sectionLabel(_ text: String) -> some View {
+    private func sectionLabel(_ text: LocalizedStringKey) -> some View {
         Text(text)
             .font(.system(size: 11, weight: .medium))
             .tracking(0.5)
@@ -113,8 +116,8 @@ struct DisplayConfigSheet: View {
                     Text("Run wallpaper on this display")
                         .font(.system(size: 13))
                     Text(settings.enabled
-                        ? "Active. macOS wallpaper is hidden."
-                        : "Off. macOS wallpaper shows normally.")
+                        ? LocalizedStringKey("Active. macOS wallpaper is hidden.")
+                        : LocalizedStringKey("Off. macOS wallpaper shows normally."))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
@@ -151,7 +154,7 @@ struct DisplayConfigSheet: View {
         return VStack(alignment: .leading, spacing: 0) {
             pickerThumbnail(wallpaper)
             VStack(alignment: .leading, spacing: 2) {
-                Text(wallpaper.name)
+                Text(wallpaper.localizedName)
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
                 Text(metaLine(for: wallpaper))
@@ -202,15 +205,17 @@ struct DisplayConfigSheet: View {
 
     private func metaLine(for w: Wallpaper) -> String {
         switch w.kind {
-        case .builtInGradient: "BUILT-IN"
+        case .builtInGradient:
+            NSLocalizedString("BUILT-IN", comment: "Wallpaper type")
         case .procedural:
-            "BUILT-IN · " + (w.proceduralKey?.uppercased() ?? "")
-        case .video: "VIDEO"
+            NSLocalizedString("BUILT-IN", comment: "Wallpaper type")
+                + " · " + (w.proceduralKey?.uppercased() ?? "")
+        case .video: NSLocalizedString("VIDEO", comment: "Wallpaper type")
         case .gif: "GIF"
         case .gifURL:
             if let host = w.urlHost { "GIF · \(host.uppercased())" } else { "GIF · URL" }
         case .url: "URL"
-        case .image: "IMAGE"
+        case .image: NSLocalizedString("IMAGE", comment: "Wallpaper type")
         }
     }
 
@@ -257,8 +262,6 @@ struct DisplayConfigSheet: View {
                 Color(red: 0.10, green: 0.30, blue: 0.40),
                 Color(red: 0.30, green: 0.10, blue: 0.45),
             ]
-        case "matrix-rain":
-            [Color(red: 0.02, green: 0.18, blue: 0.05), .black]
         case "synthwave":
             [
                 Color(red: 0.85, green: 0.20, blue: 0.50),

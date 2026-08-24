@@ -29,7 +29,7 @@ enum NASAError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
-            "NASA returned an invalid response."
+            NSLocalizedString("NASA returned an invalid response.", comment: "Gallery error")
         case let .httpError(code, raw):
             GalleryErrorText.http("NASA", code: code, raw: raw)
         case let .decoding(error, raw):

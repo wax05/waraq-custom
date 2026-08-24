@@ -28,15 +28,12 @@ import SwiftUI
 struct BrowseWebView: View {
     let sources: [GalleryExternalSource] = ExternalSources.all
 
-    private static let howItWorks = [
-        "1. Click a source to open it in your browser.",
-        "2. Find a wallpaper you like and download the .mp4.",
-        "3. Drag the file onto Waraq's Library tab.",
-        "",
-        "Waraq does not host, mirror, or redistribute external "
-            + "content. Downloads happen directly between you and "
-            + "the source site, under their personal-use terms.",
-    ].joined(separator: "\n")
+    private static var howItWorks: String {
+        NSLocalizedString(
+            "1. Click a source to open it in your browser.\n2. Find a wallpaper you like and download the .mp4.\n3. Drag the file onto Waraq's Library tab.\n\nWaraq does not host, mirror, or redistribute external content. Downloads happen directly between you and the source site, under their personal-use terms.",
+            comment: "External gallery instructions"
+        )
+    }
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -120,7 +117,7 @@ struct BrowseWebCard: View {
                 Spacer()
             }
 
-            Text(source.descriptionText)
+            Text(LocalizedStringKey(source.descriptionText))
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -128,7 +125,7 @@ struct BrowseWebCard: View {
 
             HStack {
                 ForEach(source.categoryTags, id: \.self) { tag in
-                    Text(tag)
+                    Text(LocalizedStringKey(tag))
                         .font(.system(size: 10, weight: .medium))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
